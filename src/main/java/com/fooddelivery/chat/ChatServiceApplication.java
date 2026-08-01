@@ -1,0 +1,17 @@
+package com.fooddelivery.chat;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication(scanBasePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+@EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+@EntityScan(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+@EnableScheduling
+public class ChatServiceApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(ChatServiceApplication.class, args);
+    }
+}
