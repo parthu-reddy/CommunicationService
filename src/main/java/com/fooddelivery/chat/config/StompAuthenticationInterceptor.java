@@ -12,11 +12,14 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
+import com.fooddelivery.chat.repository.SessionParticipantRepository;
+import org.springframework.messaging.MessageDeliveryException;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -32,6 +35,12 @@ import java.util.stream.Collectors;
 public class StompAuthenticationInterceptor implements ChannelInterceptor {
 
     private static final Logger log = LoggerFactory.getLogger(StompAuthenticationInterceptor.class);
+
+    private final SessionParticipantRepository participantRepository;
+
+    public StompAuthenticationInterceptor(SessionParticipantRepository participantRepository) {
+        this.participantRepository = participantRepository;
+    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -63,6 +72,25 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
                     log.info("STOMP CONNECT authenticated: userId={}, roles={}", userId, authorities);
                 } else {
                     log.warn("STOMP CONNECT with no userId in session attributes — allowing anonymous for SockJS info requests");
+                }
+            }
+        } else if (accessor != null && (StompCommand.SUBSCRIBE.equals(accessor.getCommand()) || StompCommand.SEND.equals(accessor.getCommand()))) {
+            String destination = accessor.getDestination();
+            if (destination != null) {
+                // Dest could be /topic/chat/{sessionId} or /app/chat.send/{sessionId}
+                try {
+                    String[] parts = destination.split("/");
+                    String lastPart = parts[parts.length - 1];
+                    UUID sessionId = UUID.fromString(lastPart);
+                    
+                    String userId = accessor.getUser() != null ? accessor.getUser().getName() : null;
+                    if (userId == null || !participantRepository.existsByChatSessionIdAndUserId(sessionId, userId)) {
+                        log.warn("User {} denied access to destination {}", userId, destination);
+                        throw new MessageDeliveryException("Access Denied: Not a participant of this chat session");
+                    }
+                } catch (IllegalArgumentException e) {
+                    // Not a UUID, maybe some other destination, ignore or allow depending on your security posture
+                    // We only care about chat sessions
                 }
             }
         }

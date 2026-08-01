@@ -10,5 +10,6 @@ import java.util.UUID;
 @Repository
 public interface SessionParticipantRepository extends JpaRepository<SessionParticipant, UUID> {
     List<SessionParticipant> findByUserId(String userId);
-    boolean existsBySessionIdAndUserId(UUID sessionId, String userId);
+    List<SessionParticipant> findByChatSessionId(UUID sessionId);
+    boolean existsByChatSessionIdAndUserId(UUID sessionId, String userId);
 }

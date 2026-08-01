@@ -85,7 +85,7 @@ public class ChatSessionService {
         ChatSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Session not found: " + sessionId));
 
-        if (!participantRepository.existsBySessionIdAndUserId(sessionId, participantDto.getUserId())) {
+        if (!participantRepository.existsByChatSessionIdAndUserId(sessionId, participantDto.getUserId())) {
             SessionParticipant participant = SessionParticipant.builder()
                     .chatSession(session)
                     .userId(participantDto.getUserId())
@@ -105,12 +105,12 @@ public class ChatSessionService {
      */
     @Transactional(readOnly = true)
     public boolean isParticipant(UUID sessionId, String userId) {
-        return participantRepository.existsBySessionIdAndUserId(sessionId, userId);
+        return participantRepository.existsByChatSessionIdAndUserId(sessionId, userId);
     }
 
     private void addMissingParticipants(ChatSession session, List<ParticipantDto> participants) {
         for (ParticipantDto p : participants) {
-            if (!participantRepository.existsBySessionIdAndUserId(session.getId(), p.getUserId())) {
+            if (!participantRepository.existsByChatSessionIdAndUserId(session.getId(), p.getUserId())) {
                 SessionParticipant participant = SessionParticipant.builder()
                         .chatSession(session)
                         .userId(p.getUserId())

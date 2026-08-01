@@ -74,6 +74,13 @@ public class ChatSessionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             Authentication authentication) {
+        String userId = authentication != null ? authentication.getName() : null;
+        if (userId == null || !sessionService.isParticipant(sessionId, userId)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "success", false,
+                    "message", "Access Denied: Not a participant of this chat session"
+            ));
+        }
 
         Page<ChatMessageDto> messages = messageService.getMessageHistory(sessionId, page, size);
 

@@ -63,9 +63,8 @@ public class ChatMessageService {
     public Page<ChatMessageDto> getMessageHistory(UUID sessionId, int page, int size) {
         // Build a lookup of userId -> displayName from participants
         Map<String, SessionParticipant> participantMap = participantRepository
-                .findAll() // Could optimize with a custom query, but sessions are small
+                .findByChatSessionId(sessionId)
                 .stream()
-                .filter(p -> p.getChatSession().getId().equals(sessionId))
                 .collect(Collectors.toMap(SessionParticipant::getUserId, p -> p, (a, b) -> a));
 
         return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId, PageRequest.of(page, size))
