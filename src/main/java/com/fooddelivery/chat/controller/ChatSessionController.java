@@ -54,11 +54,22 @@ public class ChatSessionController {
             @RequestParam String orderId,
             Authentication authentication) {
 
+        String userId = authentication != null ? authentication.getName() : null;
+        
         return sessionService.getSessionByOrderId(orderId)
-                .map(session -> ResponseEntity.ok(Map.<String, Object>of(
-                        "success", true,
-                        "data", session
-                )))
+                .map(session -> {
+                    // Authorization Check
+                    if (userId == null || !sessionService.isParticipant(session.getSessionId(), userId)) {
+                        return ResponseEntity.status(403).body(Map.<String, Object>of(
+                                "success", false,
+                                "message", "Access Denied: Not a participant of this chat session"
+                        ));
+                    }
+                    return ResponseEntity.ok(Map.<String, Object>of(
+                            "success", true,
+                            "data", session
+                    ));
+                })
                 .orElse(ResponseEntity.ok(Map.of(
                         "success", false,
                         "message", "No chat session found for order: " + orderId

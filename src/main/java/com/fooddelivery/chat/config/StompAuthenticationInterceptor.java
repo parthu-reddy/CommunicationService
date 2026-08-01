@@ -77,20 +77,20 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
         } else if (accessor != null && (StompCommand.SUBSCRIBE.equals(accessor.getCommand()) || StompCommand.SEND.equals(accessor.getCommand()))) {
             String destination = accessor.getDestination();
             if (destination != null) {
-                // Dest could be /topic/chat/{sessionId} or /app/chat.send/{sessionId}
-                try {
-                    String[] parts = destination.split("/");
-                    String lastPart = parts[parts.length - 1];
-                    UUID sessionId = UUID.fromString(lastPart);
-                    
-                    String userId = accessor.getUser() != null ? accessor.getUser().getName() : null;
-                    if (userId == null || !participantRepository.existsByChatSessionIdAndUserId(sessionId, userId)) {
-                        log.warn("User {} denied access to destination {}", userId, destination);
-                        throw new MessageDeliveryException("Access Denied: Not a participant of this chat session");
+                // Extract the UUID from the destination (e.g., /topic/chat/{sessionId} or /topic/chat/{sessionId}/typing)
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(".*/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:/.*)?").matcher(destination);
+                if (matcher.matches()) {
+                    try {
+                        UUID sessionId = UUID.fromString(matcher.group(1));
+                        
+                        String userId = accessor.getUser() != null ? accessor.getUser().getName() : null;
+                        if (userId == null || !participantRepository.existsByChatSessionIdAndUserId(sessionId, userId)) {
+                            log.warn("User {} denied access to destination {}", userId, destination);
+                            throw new MessageDeliveryException("Access Denied: Not a participant of this chat session");
+                        }
+                    } catch (IllegalArgumentException e) {
+                        log.error("Failed to parse UUID from matched destination: {}", destination, e);
                     }
-                } catch (IllegalArgumentException e) {
-                    // Not a UUID, maybe some other destination, ignore or allow depending on your security posture
-                    // We only care about chat sessions
                 }
             }
         }
