@@ -28,6 +28,7 @@ public class ChatMessagingController {
 
     private final SimpMessageSendingOperations messagingTemplate;
     private final ChatMessageService messageService;
+    private final com.fooddelivery.chat.service.ChatSessionService sessionService;
 
     /**
      * Handles chat messages sent via STOMP.
@@ -41,14 +42,39 @@ public class ChatMessagingController {
         String senderId = principal != null ? principal.getName() : "anonymous";
         log.info("STOMP message from {} in session {}: {}", senderId, sessionId, request.getContent());
 
+        try {
+            if (!sessionService.isParticipant(UUID.fromString(sessionId), senderId)) {
+                log.warn("Rejected message from non-participant {} for session {}", senderId, sessionId);
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid UUID format for session: {}", sessionId);
+            return;
+        }
+
+        if (request.getContent() == null || request.getContent().trim().isEmpty()) {
+            log.warn("Rejected empty message from {} in session {}", senderId, sessionId);
+            return;
+        }
+        if (request.getContent().length() > 10000) {
+            log.warn("Rejected overly large message ({} chars) from {} in session {}", request.getContent().length(), senderId, sessionId);
+            return;
+        }
+
+        // Security Validation: Clients can ONLY send TEXT messages directly over STOMP.
+        // IMAGE and AUDIO messages MUST go through their respective secure REST upload controllers
+        // to enforce file size, virus scanning (if any), and storage limits.
+        if (!"TEXT".equals(request.getMessageType())) {
+            log.warn("Rejected non-TEXT message type '{}' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
+            return;
+        }
+
         // Save to database
         ChatMessageDto saved = messageService.saveMessage(
                 UUID.fromString(sessionId),
                 senderId,
                 request.getContent(),
-                request.getMessageType(),
-                request.getSenderName(),
-                request.getSenderType()
+                request.getMessageType()
         );
 
         // Broadcast to all subscribers of this session
@@ -66,9 +92,56 @@ public class ChatMessagingController {
                                       Principal principal) {
         String userId = principal != null ? principal.getName() : "anonymous";
 
+        try {
+            if (!sessionService.isParticipant(UUID.fromString(sessionId), userId)) {
+                return; // Silently drop
+            }
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+
         messagingTemplate.convertAndSend(
                 "/topic/chat/" + sessionId + "/typing",
                 Map.of("userId", userId, "typing", true)
+        );
+    }
+
+    /**
+     * WebRTC Signaling Endpoint. Securely routes SDP offers, answers, and ICE payloads.
+     */
+    @MessageMapping("/webrtc.signal/{targetUserId}")
+    public void processWebRtcSignal(@DestinationVariable String targetUserId,
+                                    @Payload com.fooddelivery.chat.dto.WebRtcSignal signal,
+                                    Principal principal) {
+        if (principal != null) {
+            signal.setSenderId(principal.getName());
+        }
+        signal.setTargetUserId(targetUserId);
+
+        if (signal.getSessionId() == null) {
+            log.warn("WebRTC signal rejected: Missing sessionId from {}", signal.getSenderId());
+            return;
+        }
+
+        try {
+            UUID sessionId = UUID.fromString(signal.getSessionId());
+            if (!sessionService.isParticipant(sessionId, signal.getSenderId()) ||
+                !sessionService.isParticipant(sessionId, targetUserId)) {
+                log.warn("WebRTC signal rejected: Unauthorized session participants sender={}, target={}", signal.getSenderId(), targetUserId);
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("WebRTC signal rejected: Invalid sessionId format {}", signal.getSessionId());
+            return;
+        }
+        
+        log.info("Routing WebRTC signal [{}] from {} to {}", signal.getType(), signal.getSenderId(), targetUserId);
+
+        // Routes securely to the specific target user's private queue
+        messagingTemplate.convertAndSendToUser(
+                targetUserId,
+                "/queue/webrtc",
+                signal
         );
     }
 }

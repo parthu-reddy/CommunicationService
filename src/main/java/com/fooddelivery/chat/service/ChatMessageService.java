@@ -32,7 +32,17 @@ public class ChatMessageService {
      */
     @Transactional
     public ChatMessageDto saveMessage(UUID sessionId, String senderId, String content,
-                                      String messageType, String senderName, String senderType) {
+                                      String messageType) {
+        
+        // Retrieve the actual participant to get trusted name and type
+        SessionParticipant participant = participantRepository.findByChatSessionId(sessionId).stream()
+                .filter(p -> p.getUserId().equals(senderId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Sender is not a participant in this session"));
+                
+        String trustedSenderName = participant.getDisplayName();
+        String trustedSenderType = participant.getEntityType();
+
         ChatMessage message = ChatMessage.builder()
                 .sessionId(sessionId)
                 .senderId(senderId)
@@ -48,10 +58,11 @@ public class ChatMessageService {
                 .id(message.getId())
                 .sessionId(message.getSessionId())
                 .senderId(message.getSenderId())
-                .senderName(senderName)
-                .senderType(senderType)
+                .senderName(trustedSenderName)
+                .senderType(trustedSenderType)
                 .messageType(message.getMessageType())
                 .content(message.getContent())
+                .imageUrl("IMAGE".equals(message.getMessageType()) ? message.getContent() : null)
                 .timestamp(message.getCreatedAt())
                 .build();
     }
@@ -78,8 +89,17 @@ public class ChatMessageService {
                             .senderType(sender != null ? sender.getEntityType() : "UNKNOWN")
                             .messageType(msg.getMessageType())
                             .content(msg.getContent())
+                            .imageUrl("IMAGE".equals(msg.getMessageType()) ? msg.getContent() : null)
                             .timestamp(msg.getCreatedAt())
                             .build();
                 });
+    }
+
+    /**
+     * Count the number of images currently in a session for a specific user.
+     */
+    @Transactional(readOnly = true)
+    public long countImagesInSessionByUser(UUID sessionId, String senderId) {
+        return messageRepository.countBySessionIdAndSenderIdAndMessageType(sessionId, senderId, "IMAGE");
     }
 }

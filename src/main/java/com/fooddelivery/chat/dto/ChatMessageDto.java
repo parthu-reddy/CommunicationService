@@ -14,5 +14,6 @@ public class ChatMessageDto {
     private String senderType;
     private String messageType;
     private String content;
+    private String imageUrl;
     private Instant timestamp;
 }

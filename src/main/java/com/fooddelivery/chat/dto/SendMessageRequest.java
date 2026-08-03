@@ -6,6 +6,4 @@ import lombok.*;
 public class SendMessageRequest {
     private String content;
     private String messageType;
-    private String senderName;
-    private String senderType;
 }

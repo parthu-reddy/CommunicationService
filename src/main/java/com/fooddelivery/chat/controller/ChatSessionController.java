@@ -24,6 +24,7 @@ public class ChatSessionController {
 
     private final ChatSessionService sessionService;
     private final ChatMessageService messageService;
+    private final org.springframework.web.client.RestTemplate restTemplate;
 
     /**
      * Create or retrieve a chat session for an order.
@@ -34,8 +35,66 @@ public class ChatSessionController {
             @Valid @RequestBody CreateSessionRequest request,
             Authentication authentication) {
 
-        log.info("Create/get chat session for order {} by user {}", request.getOrderId(),
-                authentication != null ? authentication.getName() : "anonymous");
+        String userId = authentication != null ? authentication.getName() : null;
+        
+        // Authorization: Ensure the creator is actually part of the session they are trying to create
+        boolean isSelfParticipant = request.getParticipants().stream()
+                .anyMatch(p -> p.getUserId().equals(userId));
+                
+        if (!isSelfParticipant && !isAdmin(authentication)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "success", false,
+                    "message", "Access Denied: You must be a participant to create a session"
+            ));
+        }
+
+        // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
+        if (!isAdmin(authentication)) {
+            try {
+                String url = "http://customer-service/api/v1/internal/orders/" + request.getOrderId() + "/participants";
+                org.springframework.http.ResponseEntity<String[]> response = restTemplate.getForEntity(url, String[].class);
+                
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    java.util.List<String> authorizedParticipants = new java.util.ArrayList<>(java.util.Arrays.asList(response.getBody()));
+                    
+                    boolean isAuthorized = authorizedParticipants.contains(userId);
+                    
+                    // If not directly authorized, check if user is a restaurant owner who owns the participating restaurant
+                    if (!isAuthorized && authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_RESTAURANT"))) {
+                        try {
+                            String restUrl = "http://restaurant-service/api/v1/internal/restaurants/owner/" + userId + "/outlets";
+                            org.springframework.http.ResponseEntity<String[]> restResponse = restTemplate.getForEntity(restUrl, String[].class);
+                            if (restResponse.getStatusCode().is2xxSuccessful() && restResponse.getBody() != null) {
+                                java.util.List<String> ownedOutlets = java.util.Arrays.asList(restResponse.getBody());
+                                for (String outletId : ownedOutlets) {
+                                    if (authorizedParticipants.contains(outletId)) {
+                                        isAuthorized = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to fetch owned outlets for restaurant owner {}", userId, e);
+                        }
+                    }
+                    
+                    if (!isAuthorized) {
+                        log.warn("Privilege escalation attempt! User {} tried to access order {}", userId, request.getOrderId());
+                        return ResponseEntity.status(403).body(Map.of(
+                                "success", false,
+                                "message", "Access Denied: You are not authorized for this order"
+                        ));
+                    }
+                } else {
+                    return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access Denied"));
+                }
+            } catch (Exception e) {
+                log.error("Failed to validate order participants with customer-service for order {}", request.getOrderId(), e);
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access Denied: Unable to verify permissions"));
+            }
+        }
+
+        log.info("Create/get chat session for order {} by user {}", request.getOrderId(), userId);
 
         ChatSessionResponse session = sessionService.createOrGetSession(request);
 
@@ -113,7 +172,52 @@ public class ChatSessionController {
             @Valid @RequestBody ParticipantDto participantDto,
             Authentication authentication) {
 
-        log.info("Adding participant {} to session {}", participantDto.getUserId(), sessionId);
+        String userId = authentication != null ? authentication.getName() : null;
+
+        // Ensure the person adding a participant is already in the chat, 
+        // OR the person being added is themselves (e.g. a rider joining).
+        boolean isAlreadyParticipant = sessionService.isParticipant(sessionId, userId);
+        boolean isAddingSelf = participantDto.getUserId().equals(userId);
+        
+        if (!isAlreadyParticipant && !isAddingSelf && !isAdmin(authentication)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "success", false,
+                    "message", "Access Denied: Cannot add participant to this session"
+            ));
+        }
+
+        // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
+        if (isAddingSelf && !isAlreadyParticipant && !isAdmin(authentication)) {
+            try {
+                // We need the orderId (referenceId) from the session
+                ChatSessionResponse sessionOpt = sessionService.getSessionById(sessionId).orElse(null);
+                if (sessionOpt == null) {
+                    return ResponseEntity.status(404).body(Map.of("success", false, "message", "Session not found"));
+                }
+                
+                String orderId = sessionOpt.getReferenceId();
+                String url = "http://customer-service/api/v1/internal/orders/" + orderId + "/participants";
+                org.springframework.http.ResponseEntity<String[]> response = restTemplate.getForEntity(url, String[].class);
+                
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    java.util.List<String> authorizedParticipants = java.util.Arrays.asList(response.getBody());
+                    if (!authorizedParticipants.contains(userId)) {
+                        log.warn("Privilege escalation attempt! User {} tried to join session {} for order {}", userId, sessionId, orderId);
+                        return ResponseEntity.status(403).body(Map.of(
+                                "success", false,
+                                "message", "Access Denied: You are not authorized to join this chat session"
+                        ));
+                    }
+                } else {
+                    return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access Denied"));
+                }
+            } catch (Exception e) {
+                log.error("Failed to validate participant addition with customer-service for session {}", sessionId, e);
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access Denied: Unable to verify permissions"));
+            }
+        }
+
+        log.info("Adding participant {} to session {} by user {}", participantDto.getUserId(), sessionId, userId);
 
         ChatSessionResponse session = sessionService.addParticipant(sessionId, participantDto);
 
@@ -122,5 +226,11 @@ public class ChatSessionController {
                 "message", "Participant added",
                 "data", session
         ));
+    }
+
+    private boolean isAdmin(Authentication authentication) {
+        if (authentication == null) return false;
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SYSTEM"));
     }
 }
