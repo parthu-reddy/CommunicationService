@@ -78,7 +78,7 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
             String destination = accessor.getDestination();
             if (destination != null) {
                 // Extract the UUID from the destination (e.g., /topic/chat/{sessionId} or /topic/chat/{sessionId}/typing)
-                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(".*/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:/.*)?").matcher(destination);
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(".*/chat(?:\\\\.send|\\\\.typing)?/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:/.*)?").matcher(destination);
                 if (matcher.matches()) {
                     try {
                         UUID sessionId = UUID.fromString(matcher.group(1));

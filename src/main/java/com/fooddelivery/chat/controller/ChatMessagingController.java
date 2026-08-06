@@ -2,7 +2,9 @@ package com.fooddelivery.chat.controller;
 
 import com.fooddelivery.chat.dto.ChatMessageDto;
 import com.fooddelivery.chat.dto.SendMessageRequest;
+import com.fooddelivery.chat.service.CallLogService;
 import com.fooddelivery.chat.service.ChatMessageService;
+import com.fooddelivery.chat.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +30,8 @@ public class ChatMessagingController {
 
     private final SimpMessageSendingOperations messagingTemplate;
     private final ChatMessageService messageService;
-    private final com.fooddelivery.chat.service.ChatSessionService sessionService;
+    private final CallLogService callLogService;
+    private final ChatSessionService sessionService;
 
     /**
      * Handles chat messages sent via STOMP.
@@ -123,8 +126,9 @@ public class ChatMessagingController {
             return;
         }
 
+        UUID sessionId;
         try {
-            UUID sessionId = UUID.fromString(signal.getSessionId());
+            sessionId = UUID.fromString(signal.getSessionId());
             if (!sessionService.isParticipant(sessionId, signal.getSenderId()) ||
                 !sessionService.isParticipant(sessionId, targetUserId)) {
                 log.warn("WebRTC signal rejected: Unauthorized session participants sender={}, target={}", signal.getSenderId(), targetUserId);
@@ -136,6 +140,15 @@ public class ChatMessagingController {
         }
         
         log.info("Routing WebRTC signal [{}] from {} to {}", signal.getType(), signal.getSenderId(), targetUserId);
+
+        // Intercept signals to update the CallLog state natively in the backend
+        if ("OFFER".equals(signal.getType())) {
+            callLogService.processOffer(sessionId, signal.getSenderId(), targetUserId);
+        } else if ("ANSWER".equals(signal.getType())) {
+            callLogService.processAnswer(sessionId, signal.getSenderId());
+        } else if ("HANGUP".equals(signal.getType())) {
+            callLogService.processHangup(sessionId, signal.getSenderId(), "USER_INITIATED");
+        }
 
         // Routes securely to the specific target user's private queue
         messagingTemplate.convertAndSendToUser(
