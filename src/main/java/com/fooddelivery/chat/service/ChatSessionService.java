@@ -6,8 +6,6 @@ import com.fooddelivery.chat.entity.SessionParticipant;
 import com.fooddelivery.chat.repository.ChatSessionRepository;
 import com.fooddelivery.chat.repository.SessionParticipantRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,14 +13,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatSessionService {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatSessionService.class);
-
-    private final ChatSessionRepository sessionRepository;
+private final ChatSessionRepository sessionRepository;
     private final SessionParticipantRepository participantRepository;
 
     /**

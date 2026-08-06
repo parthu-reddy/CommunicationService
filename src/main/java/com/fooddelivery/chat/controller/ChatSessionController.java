@@ -5,8 +5,6 @@ import com.fooddelivery.chat.service.ChatMessageService;
 import com.fooddelivery.chat.service.ChatSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -14,15 +12,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/v1/chat")
 @RequiredArgsConstructor
+@Slf4j
 public class ChatSessionController {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatSessionController.class);
-
-    private final ChatSessionService sessionService;
+private final ChatSessionService sessionService;
     private final ChatMessageService messageService;
     private final org.springframework.web.client.RestTemplate restTemplate;
 

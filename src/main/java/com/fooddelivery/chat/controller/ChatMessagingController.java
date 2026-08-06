@@ -6,8 +6,6 @@ import com.fooddelivery.chat.service.CallLogService;
 import com.fooddelivery.chat.service.ChatMessageService;
 import com.fooddelivery.chat.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -17,6 +15,7 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * STOMP messaging controller for real-time chat.
@@ -24,11 +23,9 @@ import java.util.UUID;
  */
 @Controller
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessagingController {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatMessagingController.class);
-
-    private final SimpMessageSendingOperations messagingTemplate;
+private final SimpMessageSendingOperations messagingTemplate;
     private final ChatMessageService messageService;
     private final CallLogService callLogService;
     private final ChatSessionService sessionService;

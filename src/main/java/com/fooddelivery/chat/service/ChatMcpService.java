@@ -10,8 +10,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.security.core.Authentication;
 
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class ChatMcpService {
 
     private final ChatSessionController chatSessionController;

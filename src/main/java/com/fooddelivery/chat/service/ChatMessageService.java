@@ -6,8 +6,6 @@ import com.fooddelivery.chat.entity.SessionParticipant;
 import com.fooddelivery.chat.repository.ChatMessageRepository;
 import com.fooddelivery.chat.repository.SessionParticipantRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -17,14 +15,13 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageService {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatMessageService.class);
-
-    private final ChatMessageRepository messageRepository;
+private final ChatMessageRepository messageRepository;
     private final SessionParticipantRepository participantRepository;
 
     /**
