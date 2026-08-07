@@ -8,21 +8,17 @@ import com.fooddelivery.chat.dto.ParticipantDto;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.Authentication;
-
 import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
 
 @Service
-@Slf4j
 public class ChatMcpService {
-
+    @java.lang.SuppressWarnings("all")
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatMcpService.class);
     private final ChatSessionController chatSessionController;
     private final TurnCredentialController turnCredentialController;
     private final ObjectMapper objectMapper;
 
-    public ChatMcpService(ChatSessionController chatSessionController,
-                          TurnCredentialController turnCredentialController,
-                          ObjectMapper objectMapper) {
+    public ChatMcpService(ChatSessionController chatSessionController, TurnCredentialController turnCredentialController, ObjectMapper objectMapper) {
         this.chatSessionController = chatSessionController;
         this.turnCredentialController = turnCredentialController;
         this.objectMapper = objectMapper;
@@ -31,21 +27,32 @@ public class ChatMcpService {
     private Authentication createMockAuthentication(String userId) {
         return new Authentication() {
             @Override
-            public String getName() { return userId; }
+            public String getName() {
+                return userId;
+            }
             @Override
             public java.util.Collection<? extends org.springframework.security.core.GrantedAuthority> getAuthorities() {
                 return java.util.List.of(() -> "ROLE_ADMIN");
             }
             @Override
-            public Object getCredentials() { return null; }
+            public Object getCredentials() {
+                return null;
+            }
             @Override
-            public Object getDetails() { return null; }
+            public Object getDetails() {
+                return null;
+            }
             @Override
-            public Object getPrincipal() { return userId; }
+            public Object getPrincipal() {
+                return userId;
+            }
             @Override
-            public boolean isAuthenticated() { return true; }
+            public boolean isAuthenticated() {
+                return true;
+            }
             @Override
-            public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {}
+            public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {
+            }
         };
     }
 
