@@ -12,11 +12,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 
-@SpringBootApplication(scanBasePackages = {"com.fooddelivery.chat"})
-@EnableJpaRepositories(basePackages = {"com.fooddelivery.chat"})
-@EntityScan(basePackages = {"com.fooddelivery.chat"})
+import org.springframework.context.annotation.FilterType;
+import org.springframework.context.annotation.ComponentScan;
+
+@SpringBootApplication
+@ComponentScan(
+    basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"},
+    excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.fooddelivery.common.security.CommonSecurityConfig.class})
+)
+
+@org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+@org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+
 @EnableScheduling
-@Import({com.fooddelivery.common.config.CloudflareR2Config.class, com.fooddelivery.common.service.CloudflareR2Service.class})
 public class ChatServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(ChatServiceApplication.class, args);
