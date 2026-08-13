@@ -23,19 +23,20 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws/chat")
                 .setAllowedOriginPatterns("*")
-                .addInterceptors(new WebSocketSecurityInterceptor())
-                .withSockJS();
-
-        // Also register without SockJS for native WebSocket clients
-        registry.addEndpoint("/ws/chat")
-                .setAllowedOriginPatterns("*")
                 .addInterceptors(new WebSocketSecurityInterceptor());
+
     }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // Simple in-memory broker — no RabbitMQ needed for single-node deployment
-        registry.enableSimpleBroker("/topic", "/queue");
+        org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler te = new org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler();
+        te.setPoolSize(1);
+        te.setThreadNamePrefix("wss-heartbeat-thread-");
+        te.initialize();
+        
+        registry.enableSimpleBroker("/topic", "/queue")
+                .setTaskScheduler(te)
+                .setHeartbeatValue(new long[] {10000, 10000});
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
     }
