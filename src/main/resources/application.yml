@@ -26,6 +26,10 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   kafka:
+    listener:
+      observation-enabled: true
+    template:
+      observation-enabled: true
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 eureka:
@@ -39,6 +43,13 @@ eureka:
     lease-expiration-duration-in-seconds: 30
 
 management:
+  tracing:
+    enabled: true
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
   endpoints:
     web:
       exposure:
@@ -56,3 +67,4 @@ r2:
   access-key: ${R2_ACCESS_KEY_ID}
   secret-key: ${R2_SECRET_ACCESS_KEY}
   public-url: ${R2_PUBLIC_URL:https://80708a753745ca23eabc20b4b3dee5fa.r2.cloudflarestorage.com}
+

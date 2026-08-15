@@ -12,9 +12,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 public class CallLogService {
     @java.lang.SuppressWarnings("all")
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CallLogService.class);
+
     private final CallLogRepository callLogRepository;
     private final ChatMessageService chatMessageService;
     private final SimpMessagingTemplate messagingTemplate;

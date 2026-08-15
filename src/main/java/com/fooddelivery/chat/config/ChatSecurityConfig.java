@@ -38,6 +38,7 @@ public class ChatSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers("/error").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 // WebSocket endpoints must be accessible for the handshake
                 .requestMatchers("/ws/**").permitAll()
                 .anyRequest().authenticated()

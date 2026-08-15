@@ -32,9 +32,8 @@ import java.util.stream.Collectors;
  * the SecurityContextFilter does for REST endpoints.
  */
 @Component
+@lombok.extern.slf4j.Slf4j
 public class StompAuthenticationInterceptor implements ChannelInterceptor {
-
-    private static final Logger log = LoggerFactory.getLogger(StompAuthenticationInterceptor.class);
 
     private final SessionParticipantRepository participantRepository;
 

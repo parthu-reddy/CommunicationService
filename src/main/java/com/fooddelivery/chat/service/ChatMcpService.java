@@ -11,9 +11,10 @@ import org.springframework.security.core.Authentication;
 import java.util.UUID;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 public class ChatMcpService {
     @java.lang.SuppressWarnings("all")
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatMcpService.class);
+
     private final ChatSessionController chatSessionController;
     private final TurnCredentialController turnCredentialController;
     private final ObjectMapper objectMapper;

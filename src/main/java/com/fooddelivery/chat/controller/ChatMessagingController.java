@@ -19,9 +19,10 @@ import java.util.UUID;
  * Handles message sending and typing indicators over WebSocket.
  */
 @Controller
+@lombok.extern.slf4j.Slf4j
 public class ChatMessagingController {
     @java.lang.SuppressWarnings("all")
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatMessagingController.class);
+
     private final SimpMessageSendingOperations messagingTemplate;
     private final ChatMessageService messageService;
     private final CallLogService callLogService;
@@ -56,14 +57,43 @@ public class ChatMessagingController {
         // Security Validation: Clients can ONLY send TEXT messages directly over STOMP.
         // IMAGE and AUDIO messages MUST go through their respective secure REST upload controllers
         // to enforce file size, virus scanning (if any), and storage limits.
-        if (!"TEXT".equals(request.getMessageType())) {
-            log.warn("Rejected non-TEXT message type \'{}\' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
+        if (!"TEXT".equals(request.getMessageType()) &&
+            !"REFUND_QUOTE_REQUEST".equals(request.getMessageType()) &&
+            !"REFUND_QUOTE_RESPONSE".equals(request.getMessageType()) &&
+            !"REFUND_REQUEST".equals(request.getMessageType()) &&
+            !"REFUND_DECISION".equals(request.getMessageType())) {
+            log.warn("Rejected non-TEXT/REFUND message type \'{}\' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
             return;
         }
-        // Save to database
-        ChatMessageDto saved = messageService.saveMessage(UUID.fromString(sessionId), senderId, request.getContent(), request.getMessageType());
-        // Broadcast to all subscribers of this session
-        messagingTemplate.convertAndSend("/topic/chat/" + sessionId, saved);
+        // For refund-related messages, we MUST persist synchronously to guarantee OutboxEvent creation
+        if (!"TEXT".equals(request.getMessageType())) {
+            ChatMessageDto saved = messageService.saveMessage(UUID.fromString(sessionId), senderId, request.getContent(), request.getMessageType());
+            messagingTemplate.convertAndSend("/topic/chat/" + sessionId, saved);
+            return;
+        }
+
+        // For standard text messages, broadcast immediately to reduce perceived latency
+        ChatMessageDto immediateDto = ChatMessageDto.builder()
+                .id(UUID.randomUUID())
+                .sessionId(UUID.fromString(sessionId))
+                .senderId(senderId)
+                .senderName(senderId) // Fallback, UI usually styles by senderId
+                .senderType("USER")
+                .messageType("TEXT")
+                .content(request.getContent())
+                .timestamp(java.time.Instant.now())
+                .build();
+
+        messagingTemplate.convertAndSend("/topic/chat/" + sessionId, immediateDto);
+
+        // Save to database asynchronously
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                messageService.saveMessage(UUID.fromString(sessionId), senderId, request.getContent(), request.getMessageType());
+            } catch (Exception e) {
+                log.error("Failed to save chat message asynchronously", e);
+            }
+        });
     }
 
     /**

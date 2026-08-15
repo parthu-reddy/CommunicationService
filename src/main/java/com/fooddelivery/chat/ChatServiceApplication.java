@@ -15,7 +15,7 @@ import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.ComponentScan;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.fooddelivery"})
 @ComponentScan(
     basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"},
     excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.fooddelivery.common.security.CommonSecurityConfig.class})
@@ -25,6 +25,7 @@ import org.springframework.context.annotation.ComponentScan;
 @org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
 
 @EnableScheduling
+@com.fooddelivery.common.outbox.config.EnableOutbox
 public class ChatServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(ChatServiceApplication.class, args);

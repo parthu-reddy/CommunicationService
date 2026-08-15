@@ -9,9 +9,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/chat/webrtc")
+@lombok.extern.slf4j.Slf4j
 public class TurnCredentialController {
     @java.lang.SuppressWarnings("all")
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TurnCredentialController.class);
 
     @GetMapping("/ice-servers")
     public ResponseEntity<TurnCredentialsResponse> getIceServers() {

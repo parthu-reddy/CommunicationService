@@ -13,9 +13,10 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/chat")
+@lombok.extern.slf4j.Slf4j
 public class ChatSessionController {
     @java.lang.SuppressWarnings("all")
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ChatSessionController.class);
+
     private final ChatSessionService sessionService;
     private final ChatMessageService messageService;
     private final org.springframework.web.client.RestTemplate restTemplate;
