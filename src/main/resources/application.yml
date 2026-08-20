@@ -1,11 +1,10 @@
 server:
   port: 8096
-
 spring:
   application:
     name: chat-service
   config:
-    import: "optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}"
+    import: optional:classpath:config/platform-defaults.yml,optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/chat_db}
     username: ${DB_USERNAME:postgres}
@@ -26,45 +25,28 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   kafka:
-    listener:
-      observation-enabled: true
-    template:
-      observation-enabled: true
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URLS:http://localhost:8761/eureka/}
     registry-fetch-interval-seconds: 5
   instance:
-    prefer-ip-address: true
     lease-renewal-interval-in-seconds: 15
     lease-expiration-duration-in-seconds: 30
-
-management:
-  tracing:
-    enabled: true
-    sampling:
-      probability: 1.0
-  otlp:
-    tracing:
-      endpoint: http://localhost:4318/v1/traces
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-
 logging:
   level:
     com.fooddelivery.chat: INFO
     org.springframework.web.socket: INFO
     org.springframework.messaging: INFO
-
 r2:
   bucket-name: ${R2_BUCKET_NAME}
   endpoint: ${R2_ENDPOINT}
   access-key: ${R2_ACCESS_KEY_ID}
   secret-key: ${R2_SECRET_ACCESS_KEY}
   public-url: ${R2_PUBLIC_URL:https://80708a753745ca23eabc20b4b3dee5fa.r2.cloudflarestorage.com}
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
