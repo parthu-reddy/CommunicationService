@@ -15,14 +15,16 @@ import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.ComponentScan;
 
-@SpringBootApplication(scanBasePackages = {"com.fooddelivery"})
+@SpringBootApplication(
+    scanBasePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"}
+)
 @ComponentScan(
     basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"},
     excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.fooddelivery.common.security.CommonSecurityConfig.class})
 )
 
-@org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
-@org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})
+@org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common.entity"})
+@org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common.repository"})
 
 @EnableScheduling
 @com.fooddelivery.common.outbox.config.EnableOutbox
