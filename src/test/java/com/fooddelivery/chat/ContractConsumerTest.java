@@ -28,11 +28,22 @@ public class ContractConsumerTest {
             HibernateJpaAutoConfiguration.class
     })
     static class TestConfig {
+        @org.springframework.context.annotation.Bean
+        public org.springframework.web.client.RestTemplate restTemplate() {
+            return new org.springframework.web.client.RestTemplate();
+        }
     }
 
+    @Autowired
+    private org.springframework.web.client.RestTemplate restTemplate;
+
     @Test
-    public void contextLoads() {
-        // This test verifies that the stubs are successfully downloaded and registered.
-        // It serves as the baseline consumer contract test for CommunicationService.
+    public void testClientInvocations() {
+        org.springframework.http.ResponseEntity<String[]> response = restTemplate.getForEntity(
+            "http://localhost:8090/api/v1/internal/orders/123e4567-e89b-12d3-a456-426614174000/participants", 
+            String[].class
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(200, response.getStatusCodeValue());
+        org.junit.jupiter.api.Assertions.assertNotNull(response.getBody());
     }
 }
