@@ -1,1 +1,366 @@
-{"openapi":"3.0.1","info":{"title":"OpenAPI definition","version":"v0"},"servers":[{"url":"http://localhost:8096","description":"Generated server url"}],"paths":{"/api/v1/chat/sessions":{"get":{"tags":["chat-session-controller"],"operationId":"getSessionByOrderId","parameters":[{"name":"orderId","in":"query","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}},"post":{"tags":["chat-session-controller"],"operationId":"createOrGetSession","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreateSessionRequest"}}},"required":true},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}}},"/api/v1/chat/sessions/{sessionId}/upload-image":{"post":{"tags":["chat-image-upload-controller"],"operationId":"uploadImage","parameters":[{"name":"sessionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"required":["file"],"type":"object","properties":{"file":{"type":"string","format":"binary"}}}}}},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}}},"/api/v1/chat/sessions/{sessionId}/upload-audio":{"post":{"tags":["chat-audio-upload-controller"],"operationId":"uploadAudio","parameters":[{"name":"sessionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"required":["file"],"type":"object","properties":{"file":{"type":"string","format":"binary"}}}}}},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}}},"/api/v1/chat/sessions/{sessionId}/participants":{"post":{"tags":["chat-session-controller"],"operationId":"addParticipant","parameters":[{"name":"sessionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ParticipantDto"}}},"required":true},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}}},"/api/v1/chat/webrtc/ice-servers":{"get":{"tags":["turn-credential-controller"],"operationId":"getIceServers","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/TurnCredentialsResponse"}}}}}}},"/api/v1/chat/sessions/{sessionId}/messages":{"get":{"tags":["chat-session-controller"],"operationId":"getMessages","parameters":[{"name":"sessionId","in":"path","required":true,"schema":{"type":"string","format":"uuid"}},{"name":"page","in":"query","required":false,"schema":{"type":"integer","format":"int32","default":0}},{"name":"size","in":"query","required":false,"schema":{"type":"integer","format":"int32","default":50}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object","additionalProperties":{"type":"object"}}}}}}}}},"components":{"schemas":{"CreateSessionRequest":{"required":["orderId","participants"],"type":"object","properties":{"orderId":{"type":"string"},"participants":{"type":"array","items":{"$ref":"#/components/schemas/ParticipantDto"}}}},"ParticipantDto":{"required":["entityType","userId"],"type":"object","properties":{"userId":{"type":"string"},"entityType":{"type":"string"},"displayName":{"type":"string"}}},"IceServer":{"type":"object","properties":{"urls":{"type":"string"},"username":{"type":"string"},"credential":{"type":"string"}}},"TurnCredentialsResponse":{"type":"object","properties":{"iceServers":{"type":"array","items":{"$ref":"#/components/schemas/IceServer"}}}}}}}
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8096",
+      "description": "Generated server url"
+    }
+  ],
+  "paths": {
+    "/api/v1/chat/sessions": {
+      "get": {
+        "tags": [
+          "chat-session-controller"
+        ],
+        "operationId": "getSessionByOrderId",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "chat-session-controller"
+        ],
+        "operationId": "createOrGetSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/sessions/{sessionId}/upload-image": {
+      "post": {
+        "tags": [
+          "chat-image-upload-controller"
+        ],
+        "operationId": "uploadImage",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/sessions/{sessionId}/upload-audio": {
+      "post": {
+        "tags": [
+          "chat-audio-upload-controller"
+        ],
+        "operationId": "uploadAudio",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/sessions/{sessionId}/participants": {
+      "post": {
+        "tags": [
+          "chat-session-controller"
+        ],
+        "operationId": "addParticipant",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipantDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/webrtc/ice-servers": {
+      "get": {
+        "tags": [
+          "turn-credential-controller"
+        ],
+        "operationId": "getIceServers",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnCredentialsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/sessions/{sessionId}/messages": {
+      "get": {
+        "tags": [
+          "chat-session-controller"
+        ],
+        "operationId": "getMessages",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateSessionRequest": {
+        "required": [
+          "orderId",
+          "participants"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParticipantDto"
+            }
+          }
+        }
+      },
+      "ParticipantDto": {
+        "required": [
+          "entityType",
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "IceServer": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "credential": {
+            "type": "string"
+          }
+        }
+      },
+      "TurnCredentialsResponse": {
+        "type": "object",
+        "properties": {
+          "iceServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IceServer"
+            }
+          }
+        }
+      }
+    }
+  }
+}
