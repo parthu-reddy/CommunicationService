@@ -30,7 +30,7 @@ public class RefundDecisionListener {
         this.transactionTemplate = transactionTemplate;
     }
 
-    @KafkaListener(topics = "chat-events", groupId = "chat-service-refund-group")
+    @KafkaListener(topics = "chat-events", groupId = "chat-service-refund-group-refunddecisionlistener")
     public void handleRefundDecision(OutboxEvent event, @org.springframework.messaging.handler.annotation.Headers java.util.Map<String, Object> headers) {
         try {
             if ("CHAT_REFUND_QUOTE_RESPONSE".equals(event.getType()) || "CHAT_REFUND_DECISION".equals(event.getType()) || "CHAT_REFUND_ERROR".equals(event.getType())) {
