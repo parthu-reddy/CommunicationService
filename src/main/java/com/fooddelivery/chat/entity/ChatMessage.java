@@ -21,18 +21,7 @@ public class ChatMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @java.lang.SuppressWarnings("all")
-    private static String $default$messageType() {
-        return "TEXT";
-    }
-
-    @java.lang.SuppressWarnings("all")
-    private static Instant $default$createdAt() {
-        return Instant.now();
-    }
-
-
-    @java.lang.SuppressWarnings("all")
+            @java.lang.SuppressWarnings("all")
     public static class ChatMessageBuilder {
         @java.lang.SuppressWarnings("all")
         private UUID id;
@@ -206,5 +195,13 @@ public class ChatMessage {
         this.messageType = messageType;
         this.content = content;
         this.createdAt = createdAt;
+    }
+
+    private static Instant $default$createdAt() {
+        return Instant.now();
+    }
+
+    private static String $default$messageType() {
+        return "TEXT";
     }
 }

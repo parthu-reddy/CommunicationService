@@ -22,13 +22,7 @@ public class SessionParticipant {
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;
 
-    @java.lang.SuppressWarnings("all")
-    private static Instant $default$joinedAt() {
-        return Instant.now();
-    }
-
-
-    @java.lang.SuppressWarnings("all")
+        @java.lang.SuppressWarnings("all")
     public static class SessionParticipantBuilder {
         @java.lang.SuppressWarnings("all")
         private UUID id;
@@ -196,5 +190,9 @@ public class SessionParticipant {
         this.entityType = entityType;
         this.displayName = displayName;
         this.joinedAt = joinedAt;
+    }
+
+    private static Instant $default$joinedAt() {
+        return Instant.now();
     }
 }

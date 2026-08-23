@@ -36,18 +36,7 @@ public class CallLog {
         this.updatedAt = Instant.now();
     }
 
-    @java.lang.SuppressWarnings("all")
-    private static Instant $default$createdAt() {
-        return Instant.now();
-    }
-
-    @java.lang.SuppressWarnings("all")
-    private static Instant $default$updatedAt() {
-        return Instant.now();
-    }
-
-
-    @java.lang.SuppressWarnings("all")
+            @java.lang.SuppressWarnings("all")
     public static class CallLogBuilder {
         @java.lang.SuppressWarnings("all")
         private UUID id;
@@ -309,5 +298,13 @@ public class CallLog {
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    private static Instant $default$createdAt() {
+        return Instant.now();
+    }
+
+    private static Instant $default$updatedAt() {
+        return Instant.now();
     }
 }

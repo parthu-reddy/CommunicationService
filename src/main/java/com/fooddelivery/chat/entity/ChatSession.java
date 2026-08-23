@@ -23,28 +23,7 @@ public class ChatSession {
     @OneToMany(mappedBy = "chatSession", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<SessionParticipant> participants;
 
-    @java.lang.SuppressWarnings("all")
-    private static String $default$sessionType() {
-        return "ORDER";
-    }
-
-    @java.lang.SuppressWarnings("all")
-    private static Boolean $default$isActive() {
-        return true;
-    }
-
-    @java.lang.SuppressWarnings("all")
-    private static Instant $default$createdAt() {
-        return Instant.now();
-    }
-
-    @java.lang.SuppressWarnings("all")
-    private static List<SessionParticipant> $default$participants() {
-        return new ArrayList<>();
-    }
-
-
-    @java.lang.SuppressWarnings("all")
+                    @java.lang.SuppressWarnings("all")
     public static class ChatSessionBuilder {
         @java.lang.SuppressWarnings("all")
         private UUID id;
@@ -230,5 +209,21 @@ public class ChatSession {
         this.isActive = isActive;
         this.createdAt = createdAt;
         this.participants = participants;
+    }
+
+    private static Boolean $default$isActive() {
+        return true;
+    }
+
+    private static Instant $default$createdAt() {
+        return Instant.now();
+    }
+
+    private static String $default$sessionType() {
+        return "ORDER";
+    }
+
+    private static List<SessionParticipant> $default$participants() {
+        return new ArrayList<>();
     }
 }
