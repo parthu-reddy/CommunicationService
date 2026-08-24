@@ -27,7 +27,6 @@ import org.springframework.context.annotation.ComponentScan;
 @org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common.repository"})
 
 @EnableScheduling
-@com.fooddelivery.common.outbox.config.EnableOutbox
 public class ChatServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(ChatServiceApplication.class, args);
