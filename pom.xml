@@ -46,6 +46,12 @@
     
         
     
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
     </dependencyManagement>
 
@@ -146,7 +152,13 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
-    <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-contract-stub-runner</artifactId><scope>test</scope></dependency><dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka-test</artifactId><scope>test</scope></dependency></dependencies>
+    <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-contract-stub-runner</artifactId><scope>test</scope></dependency><dependency><groupId>org.springframework.kafka</groupId><artifactId>spring-kafka-test</artifactId><scope>test</scope></dependency>    <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -155,7 +167,8 @@
                 <artifactId>springdoc-openapi-maven-plugin</artifactId>
                 <version>1.4</version>
                 
-                <configuration>
+                                
+<configuration>
                     <apiDocsUrl>http://localhost:8096/v3/api-docs</apiDocsUrl>
                     <outputFileName>openapi.json</outputFileName>
                     <outputDir>${project.build.directory}</outputDir>
