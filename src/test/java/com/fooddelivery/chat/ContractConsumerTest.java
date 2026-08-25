@@ -21,8 +21,8 @@ import org.springframework.context.annotation.Configuration;
 }, stubsMode = StubRunnerProperties.StubsMode.LOCAL)
 public class ContractConsumerTest {
 
-    @Configuration
-    @EnableAutoConfiguration(exclude = {
+    @org.springframework.boot.SpringBootConfiguration
+    @org.springframework.boot.autoconfigure.EnableAutoConfiguration(exclude = {
             DataSourceAutoConfiguration.class,
             DataSourceTransactionManagerAutoConfiguration.class,
             HibernateJpaAutoConfiguration.class
