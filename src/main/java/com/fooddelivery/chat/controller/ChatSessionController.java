@@ -28,9 +28,10 @@ public class ChatSessionController {
     @PostMapping("/sessions")
     public ResponseEntity<Map<String, Object>> createOrGetSession(@Valid @RequestBody CreateSessionRequest request, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
+        boolean isRestaurant = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_RESTAURANT"));
         // Authorization: Ensure the creator is actually part of the session they are trying to create
         boolean isSelfParticipant = request.getParticipants().stream().anyMatch(p -> p.getUserId().equals(userId));
-        if (!isSelfParticipant && !isAdmin(authentication)) {
+        if (!isSelfParticipant && !isAdmin(authentication) && !isRestaurant) {
             return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access Denied: You must be a participant to create a session"));
         }
         // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
