@@ -35,6 +35,23 @@ public class ChatServiceApplication {
     @Bean
     @LoadBalanced
     public RestTemplate restTemplate(org.springframework.boot.web.client.RestTemplateBuilder builder) {
-        return builder.build();
+        return builder.interceptors((request, body, execution) -> {
+            org.springframework.web.context.request.ServletRequestAttributes attributes = (org.springframework.web.context.request.ServletRequestAttributes) org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                jakarta.servlet.http.HttpServletRequest servletRequest = attributes.getRequest();
+                String[] headersToForward = {
+                    "X-User-Id", "X-User-Roles", "X-User-Phone",
+                    "X-Identity-Signature", "X-Issued-At", "X-Session-Id",
+                    "X-Calling-Service", "X-Device-Id", "Authorization"
+                };
+                for (String headerName : headersToForward) {
+                    String headerValue = servletRequest.getHeader(headerName);
+                    if (headerValue != null) {
+                        request.getHeaders().add(headerName, headerValue);
+                    }
+                }
+            }
+            return execution.execute(request, body);
+        }).build();
     }
 }
