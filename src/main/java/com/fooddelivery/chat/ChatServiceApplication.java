@@ -40,7 +40,7 @@ public class ChatServiceApplication {
             if (attributes != null) {
                 jakarta.servlet.http.HttpServletRequest servletRequest = attributes.getRequest();
                 String[] headersToForward = {
-                    "X-User-Id", "X-User-Roles", "X-User-Phone",
+                    com.fooddelivery.common.constants.HeaderConstants.HEADER_USER_ID, com.fooddelivery.common.constants.HeaderConstants.HEADER_USER_ROLES, com.fooddelivery.common.constants.HeaderConstants.HEADER_USER_PHONE,
                     "X-Identity-Signature", "X-Issued-At", "X-Session-Id",
                     "X-Calling-Service", "X-Device-Id", "Authorization"
                 };

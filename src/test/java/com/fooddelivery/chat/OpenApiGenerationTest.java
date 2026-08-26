@@ -18,10 +18,10 @@ import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 
 @SpringBootTest(classes = OpenApiGenerationTest.TestApp.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-    "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
+    "spring.datasource.url=jdbc:h2:mem:testdb_openapi;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.username=sa",
-    "spring.datasource.password=sa",
+    "spring.datasource.password=",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "springdoc.writer-with-default-pretty-printer=true",
     "spring.cloud.config.enabled=false",

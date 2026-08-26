@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
         "spring.jpa.hibernate.ddl-auto=none",
-        "spring.datasource.username=sa",
         "spring.datasource.password="
     }
 )
