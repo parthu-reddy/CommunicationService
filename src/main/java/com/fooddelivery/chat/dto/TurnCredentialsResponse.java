@@ -3,10 +3,12 @@ package com.fooddelivery.chat.dto;
 import java.util.List;
 
 public class TurnCredentialsResponse {
+    @jakarta.validation.constraints.NotNull
     private List<IceServer> iceServers;
 
 
     public static class IceServer {
+        @jakarta.validation.constraints.NotNull
         private String urls;
         private String username;
         private String credential;

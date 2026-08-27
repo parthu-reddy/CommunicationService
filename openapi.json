@@ -299,6 +299,7 @@
         }
       },
       "IceServer" : {
+        "required" : [ "urls" ],
         "type" : "object",
         "properties" : {
           "urls" : {
@@ -313,6 +314,7 @@
         }
       },
       "TurnCredentialsResponse" : {
+        "required" : [ "iceServers" ],
         "type" : "object",
         "properties" : {
           "iceServers" : {
