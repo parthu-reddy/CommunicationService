@@ -30,6 +30,7 @@ public class ChatAudioUploadController {
     private final SimpMessageSendingOperations messagingTemplate;
     private static final long MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB for audio recordings
 
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/upload-audio")
     public ResponseEntity<Map<String, Object>> uploadAudio(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
         // 1. Authentication check

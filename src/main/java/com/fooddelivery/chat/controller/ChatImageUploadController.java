@@ -31,6 +31,7 @@ public class ChatImageUploadController {
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
     private static final int MAX_IMAGE_DIMENSION = 5000; // pixels
 
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/upload-image")
     public ResponseEntity<Map<String, Object>> uploadImage(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
         // 1. Authentication check

@@ -13,6 +13,8 @@ import java.util.List;
 public class TurnCredentialController {
     @java.lang.SuppressWarnings("all")
 
+    /** Hands out TURN/STUN credentials to the chat UI: a caller must be a known user. */
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @GetMapping("/ice-servers")
     public ResponseEntity<TurnCredentialsResponse> getIceServers() {
         // In a real production environment, this would call Twilio's Network Traversal Service API

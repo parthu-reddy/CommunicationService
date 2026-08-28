@@ -25,6 +25,8 @@ public class ChatSessionController {
      * Create or retrieve a chat session for an order.
      * Idempotent — safe to call multiple times.
      */
+    /** Chat is between identified participants; the controller resolves the caller from the security context. */
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions")
     public ResponseEntity<Map<String, Object>> createOrGetSession(@Valid @RequestBody CreateSessionRequest request, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
@@ -80,6 +82,8 @@ public class ChatSessionController {
     /**
      * Get the chat session for a specific order.
      */
+    /** Chat is between identified participants; the controller resolves the caller from the security context. */
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @GetMapping("/sessions")
     public ResponseEntity<Map<String, Object>> getSessionByOrderId(@RequestParam String orderId, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
@@ -96,6 +100,8 @@ public class ChatSessionController {
     /**
      * Get paginated message history for a session.
      */
+    /** Chat is between identified participants; the controller resolves the caller from the security context. */
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @GetMapping("/sessions/{sessionId}/messages")
     public ResponseEntity<Map<String, Object>> getMessages(@PathVariable UUID sessionId, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
@@ -109,6 +115,8 @@ public class ChatSessionController {
     /**
      * Add a participant to an existing session (e.g., when a rider is assigned).
      */
+    /** Chat is between identified participants; the controller resolves the caller from the security context. */
+    @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/participants")
     public ResponseEntity<Map<String, Object>> addParticipant(@PathVariable UUID sessionId, @Valid @RequestBody ParticipantDto participantDto, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;

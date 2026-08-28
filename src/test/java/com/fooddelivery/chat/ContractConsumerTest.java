@@ -12,12 +12,12 @@ import org.springframework.cloud.contract.stubrunner.spring.StubRunnerProperties
 import org.springframework.context.annotation.Configuration;
 
 @SpringBootTest(classes = ContractConsumerTest.TestConfig.class, webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
-    "customer-service.url=http://localhost:8090",
-    "restaurant-service.url=http://localhost:8091"
+    "customer-service.url=http://localhost:${stubrunner.runningstubs.food-delivery-backend.port}",
+    "restaurant-service.url=http://localhost:${stubrunner.runningstubs.restaurant-application.port}"
 })
 @AutoConfigureStubRunner(ids = {
-    "com.fooddelivery:food-delivery-backend:+:stubs:8090",
-    "com.fooddelivery:restaurant-application:+:stubs:8091"
+    "com.fooddelivery:food-delivery-backend:+:stubs",
+    "com.fooddelivery:restaurant-application:+:stubs"
 }, stubsMode = StubRunnerProperties.StubsMode.LOCAL)
 public class ContractConsumerTest {
 
@@ -37,10 +37,16 @@ public class ContractConsumerTest {
     @Autowired
     private org.springframework.web.client.RestTemplate restTemplate;
 
+    // Stub runner assigns this at runtime. It used to be hardcoded to 8090, which collided with the
+    // three other modules that also pinned 8090 and made a parallel build race.
+    @org.springframework.beans.factory.annotation.Value("${stubrunner.runningstubs.food-delivery-backend.port}")
+    private int customerServiceStubPort;
+
     @Test
     public void testClientInvocations() {
         org.springframework.http.ResponseEntity<String[]> response = restTemplate.getForEntity(
-            "http://localhost:8090/api/v1/internal/orders/123e4567-e89b-12d3-a456-426614174000/participants", 
+            "http://localhost:" + customerServiceStubPort
+                + "/api/v1/internal/orders/123e4567-e89b-12d3-a456-426614174000/participants",
             String[].class
         );
         org.junit.jupiter.api.Assertions.assertEquals(200, response.getStatusCodeValue());
