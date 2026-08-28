@@ -25,71 +25,66 @@ public class ChatMcpService {
         this.objectMapper = objectMapper;
     }
 
-    private Authentication createMockAuthentication(String userId) {
-        return new Authentication() {
-            @Override
-            public String getName() {
-                return userId;
-            }
-            @Override
-            public java.util.Collection<? extends org.springframework.security.core.GrantedAuthority> getAuthorities() {
-                return java.util.List.of(() -> "ROLE_ADMIN");
-            }
-            @Override
-            public Object getCredentials() {
-                return null;
-            }
-            @Override
-            public Object getDetails() {
-                return null;
-            }
-            @Override
-            public Object getPrincipal() {
-                return userId;
-            }
-            @Override
-            public boolean isAuthenticated() {
-                return true;
-            }
-            @Override
-            public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {
-            }
-        };
+    /**
+     * The acting principal, taken from the security context exactly as a controller would.
+     *
+     * <p>This replaced {@code createMockAuthentication(String userId)}, which built an
+     * {@code Authentication} from a caller-supplied string, marked it authenticated, granted it
+     * {@code ROLE_ADMIN} and handed it to the real controllers — satisfying every downstream
+     * ownership check by construction. It was the platform's own IDOR rule inverted: derive the
+     * acting entity from the authenticated principal, never from a request field.
+     *
+     * <p>A tool is a controller with a different transport. If the transport cannot establish a
+     * security context, the tool cannot act on a user's behalf and must say so rather than invent
+     * one. The MCP endpoints sit behind the same default-deny chain as everything else
+     * ({@code ChatSecurityConfig} ends {@code anyRequest().authenticated()}), so a request that
+     * reaches a tool has already been authenticated by {@code SecurityContextFilter} from the
+     * gateway's HMAC-signed identity headers.
+     */
+    private Authentication requireCaller() {
+        Authentication authentication =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new IllegalStateException(
+                    "No authenticated caller in the security context. MCP tools act on behalf of the "
+                    + "request's principal and cannot be invoked anonymously.");
+        }
+        return authentication;
     }
 
-    @Tool(description = "Create or get chat session. Provide userId (caller) and JSON string of CreateSessionRequest (orderId).")
-    public String createOrGetSession(String userId, String requestJson) {
+    @Tool(description = "Create or get a chat session for the authenticated caller. Provide a JSON string of CreateSessionRequest (orderId).")
+    public String createOrGetSession(String requestJson) {
         try {
             CreateSessionRequest req = objectMapper.readValue(requestJson, CreateSessionRequest.class);
-            return objectMapper.writeValueAsString(chatSessionController.createOrGetSession(req, createMockAuthentication(userId)).getBody());
+            return objectMapper.writeValueAsString(chatSessionController.createOrGetSession(req, requireCaller()).getBody());
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
     }
 
-    @Tool(description = "Get chat session by order ID. Provide userId (caller) and orderId.")
-    public String getSessionByOrderId(String userId, String orderId) {
+    @Tool(description = "Get a chat session by order ID, as the authenticated caller. Provide orderId.")
+    public String getSessionByOrderId(String orderId) {
         try {
-            return objectMapper.writeValueAsString(chatSessionController.getSessionByOrderId(orderId, createMockAuthentication(userId)).getBody());
+            return objectMapper.writeValueAsString(chatSessionController.getSessionByOrderId(orderId, requireCaller()).getBody());
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
     }
 
-    @Tool(description = "Get messages for a chat session. Provide userId (caller), sessionId, page, and size.")
-    public String getMessages(String userId, String sessionId, int page, int size) {
+    @Tool(description = "Get messages for a chat session, as the authenticated caller. Provide sessionId, page, and size.")
+    public String getMessages(String sessionId, int page, int size) {
         try {
-            return objectMapper.writeValueAsString(chatSessionController.getMessages(UUID.fromString(sessionId), page, size, createMockAuthentication(userId)).getBody());
+            return objectMapper.writeValueAsString(chatSessionController.getMessages(UUID.fromString(sessionId), page, size, requireCaller()).getBody());
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
     }
 
-    @Tool(description = "Add participant to chat session. Provide userId (caller), sessionId, and JSON string of ParticipantDto (userId, role, name).")
-    public String addParticipant(String userId, String sessionId, String requestJson) {
+    @Tool(description = "Add a participant to a chat session, as the authenticated caller. Provide sessionId and a JSON string of ParticipantDto (userId, role, name). The userId in that DTO is the participant being added, not the caller.")
+    public String addParticipant(String sessionId, String requestJson) {
         try {
             ParticipantDto req = objectMapper.readValue(requestJson, ParticipantDto.class);
-            return objectMapper.writeValueAsString(chatSessionController.addParticipant(UUID.fromString(sessionId), req, createMockAuthentication(userId)).getBody());
+            return objectMapper.writeValueAsString(chatSessionController.addParticipant(UUID.fromString(sessionId), req, requireCaller()).getBody());
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
