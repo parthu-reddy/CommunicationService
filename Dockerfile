@@ -1,7 +1,7 @@
 # Builder stage
 FROM eclipse-temurin:17-jre-jammy as builder
 WORKDIR /builder
-COPY CommunicationService/target/*.jar app.jar
+COPY CommunicationService/target/*-SNAPSHOT.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --launcher --destination extracted
 
 # Final stage
