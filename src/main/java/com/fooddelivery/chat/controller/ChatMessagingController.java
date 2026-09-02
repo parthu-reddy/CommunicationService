@@ -193,7 +193,11 @@ public class ChatMessagingController {
         if (nonRestaurantCache.containsKey(targetId)) return null;
         
         try {
-            org.springframework.http.ResponseEntity<Map> response = restTemplate.getForEntity("http://restaurant-service/api/v1/internal/restaurants/outlets/" + targetId + "/owner", Map.class);
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("X-User-Id", "system");
+            headers.set("X-User-Roles", "SYSTEM");
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+            org.springframework.http.ResponseEntity<Map> response = restTemplate.exchange("http://restaurant-service/api/v1/internal/restaurants/outlets/" + targetId + "/owner", org.springframework.http.HttpMethod.GET, entity, Map.class);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String ownerId = (String) response.getBody().get("ownerId");
                 if (ownerId != null) {
