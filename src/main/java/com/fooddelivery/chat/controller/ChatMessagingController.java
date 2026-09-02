@@ -132,8 +132,8 @@ public class ChatMessagingController {
         try {
             sessionId = UUID.fromString(signal.getSessionId());
             
-            boolean senderAuthorized = sessionService.isParticipant(sessionId, signal.getSenderId()) || ownsParticipantRestaurant(sessionId, signal.getSenderId());
-            boolean targetAuthorized = sessionService.isParticipant(sessionId, targetUserId) || ownsParticipantRestaurant(sessionId, targetUserId);
+            boolean senderAuthorized = sessionService.isParticipant(sessionId, signal.getSenderId());
+            boolean targetAuthorized = sessionService.isParticipant(sessionId, targetUserId);
             
             if (!senderAuthorized || !targetAuthorized) {
                 log.warn("WebRTC signal rejected: Unauthorized session participants sender={}, target={}", signal.getSenderId(), targetUserId);
@@ -153,60 +153,11 @@ public class ChatMessagingController {
             callLogService.processHangup(sessionId, signal.getSenderId(), "USER_INITIATED");
         }
         
-        String finalTargetUserId = targetUserId;
-        if (targetUserId != null && targetUserId.length() == 36) {
-            String ownerId = getRestaurantOwner(targetUserId);
-            if (ownerId != null) {
-                finalTargetUserId = ownerId;
-            }
-        }
-        
         // Routes securely to the specific target user's private queue
-        messagingTemplate.convertAndSendToUser(finalTargetUserId, "/queue/webrtc", signal);
+        messagingTemplate.convertAndSendToUser(targetUserId, "/queue/webrtc", signal);
     }
     
-    private final java.util.concurrent.ConcurrentHashMap<String, String> restaurantOwnerCache = new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> nonRestaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final org.springframework.web.client.RestTemplate restTemplate;
-
-    private boolean ownsParticipantRestaurant(UUID sessionId, String potentialOwnerId) {
-        com.fooddelivery.chat.dto.ChatSessionResponse session = sessionService.getSessionById(sessionId).orElse(null);
-        if (session == null) return false;
-        
-        for (com.fooddelivery.chat.dto.ParticipantDto p : session.getParticipants()) {
-            if ("RESTAURANT".equals(p.getEntityType()) || p.getUserId().length() == 36) {
-                String restaurantId = p.getUserId();
-                String actualOwner = getRestaurantOwner(restaurantId);
-                if (potentialOwnerId.equals(actualOwner)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private String getRestaurantOwner(String targetId) {
-        if (targetId == null || targetId.length() != 36) return null;
-        String cachedOwner = restaurantOwnerCache.get(targetId);
-        if (cachedOwner != null) return cachedOwner;
-        
-        if (nonRestaurantCache.containsKey(targetId)) return null;
-        
-        try {
-            org.springframework.http.ResponseEntity<Map> response = restTemplate.getForEntity("http://restaurant-service/api/v1/internal/restaurants/" + targetId, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String ownerId = (String) response.getBody().get("ownerId");
-                if (ownerId != null) {
-                    restaurantOwnerCache.put(targetId, ownerId);
-                    return ownerId;
-                }
-            }
-        } catch (Exception e) {
-            // Ignore exceptions like 404
-        }
-        nonRestaurantCache.put(targetId, true);
-        return null;
-    }
 
     @java.lang.SuppressWarnings("all")
     public ChatMessagingController(final SimpMessageSendingOperations messagingTemplate, final ChatMessageService messageService, final CallLogService callLogService, final ChatSessionService sessionService, final org.springframework.web.client.RestTemplate restTemplate) {
