@@ -33,6 +33,15 @@ public class ChatServiceApplication {
     }
 
     @Bean
+    public com.fooddelivery.common.outbox.service.OutboxProcessor outboxProcessor(
+            com.fooddelivery.common.outbox.repository.OutboxEventRepository repository,
+            org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate,
+            io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        System.out.println("MANUALLY CREATING OUTBOX PROCESSOR IN CHAT SERVICE!");
+        return new com.fooddelivery.common.outbox.service.OutboxProcessor(repository, kafkaTemplate, meterRegistry);
+    }
+
+    @Bean
     @LoadBalanced
     public RestTemplate restTemplate(org.springframework.boot.web.client.RestTemplateBuilder builder) {
         return builder.interceptors((request, body, execution) -> {
