@@ -143,7 +143,7 @@ public class ChatMessagingController {
             log.warn("WebRTC signal rejected: Invalid sessionId format {}", signal.getSessionId());
             return;
         }
-        log.info("Routing WebRTC signal [{}] from {} to {}", signal.getType(), signal.getSenderId(), targetUserId);
+        log.info("Routing WebRTC signal [{}] from {} to {} for session {}", signal.getType(), signal.getSenderId(), targetUserId, sessionId);
         // Intercept signals to update the CallLog state natively in the backend
         if ("OFFER".equals(signal.getType())) {
             callLogService.processOffer(sessionId, signal.getSenderId(), targetUserId);
@@ -155,14 +155,20 @@ public class ChatMessagingController {
         
         String finalTargetUserId = targetUserId;
         if (targetUserId != null && targetUserId.length() == 36) {
+            log.info("Target user ID looks like a UUID ({}). Checking if it's a restaurant...", targetUserId);
             String ownerId = getRestaurantOwner(targetUserId);
             if (ownerId != null) {
+                log.info("Target user {} is a restaurant owned by {}. Re-routing signal to owner.", targetUserId, ownerId);
                 finalTargetUserId = ownerId;
+            } else {
+                log.info("Target user {} is NOT a restaurant (owner not found). Proceeding with target {}", targetUserId, targetUserId);
             }
         }
         
+        log.info("Sending WebRTC signal to final target user ID: {} at destination /queue/webrtc", finalTargetUserId);
         // Routes securely to the specific target user's private queue
         messagingTemplate.convertAndSendToUser(finalTargetUserId, "/queue/webrtc", signal);
+        log.info("WebRTC signal sent successfully to target user ID: {}", finalTargetUserId);
     }
     
     private final java.util.concurrent.ConcurrentHashMap<String, String> restaurantOwnerCache = new java.util.concurrent.ConcurrentHashMap<>();
@@ -188,11 +194,18 @@ public class ChatMessagingController {
     private String getRestaurantOwner(String targetId) {
         if (targetId == null || targetId.length() != 36) return null;
         String cachedOwner = restaurantOwnerCache.get(targetId);
-        if (cachedOwner != null) return cachedOwner;
+        if (cachedOwner != null) {
+            log.info("Found cached owner {} for restaurant {}", cachedOwner, targetId);
+            return cachedOwner;
+        }
         
-        if (nonRestaurantCache.containsKey(targetId)) return null;
+        if (nonRestaurantCache.containsKey(targetId)) {
+            log.info("Target {} is in nonRestaurantCache", targetId);
+            return null;
+        }
         
         try {
+            log.info("Querying restaurant-service for owner of outlet {}", targetId);
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             headers.set("X-User-Id", "system");
             headers.set("X-User-Roles", "SYSTEM");
@@ -201,11 +214,15 @@ public class ChatMessagingController {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String ownerId = (String) response.getBody().get("ownerId");
                 if (ownerId != null) {
+                    log.info("Successfully fetched owner {} for restaurant {}", ownerId, targetId);
                     restaurantOwnerCache.put(targetId, ownerId);
                     return ownerId;
                 }
+            } else {
+                log.warn("restaurant-service returned status {} for target {}", response.getStatusCode(), targetId);
             }
         } catch (Exception e) {
+            log.error("Error querying restaurant-service for target {}: {}", targetId, e.getMessage());
             // Ignore exceptions like 404
         }
         nonRestaurantCache.put(targetId, true);
