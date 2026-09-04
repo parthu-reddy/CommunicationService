@@ -136,8 +136,11 @@ public class ChatMessagingController {
             boolean targetAuthorized = sessionService.isParticipant(sessionId, targetUserId) || ownsParticipantRestaurant(sessionId, targetUserId);
             
             if (!senderAuthorized || !targetAuthorized) {
-                log.warn("WebRTC signal rejected: Unauthorized session participants sender={}, target={}", signal.getSenderId(), targetUserId);
-                return;
+                boolean isOrderAuthorized = checkOrderParticipants(sessionId, signal.getSenderId(), targetUserId);
+                if (!isOrderAuthorized) {
+                    log.warn("WebRTC signal rejected: Unauthorized session/order participants sender={}, target={}", signal.getSenderId(), targetUserId);
+                    return;
+                }
             }
         } catch (IllegalArgumentException e) {
             log.warn("WebRTC signal rejected: Invalid sessionId format {}", signal.getSessionId());
@@ -227,6 +230,56 @@ public class ChatMessagingController {
         }
         nonRestaurantCache.put(targetId, true);
         return null;
+    }
+
+    private boolean checkOrderParticipants(UUID orderId, String senderId, String targetUserId) {
+        try {
+            log.info("Session authorization failed. Checking if {} is a valid order ID for WebRTC call.", orderId);
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("X-User-Id", "system");
+            headers.set("X-User-Roles", "ADMIN");
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+            
+            org.springframework.http.ResponseEntity<java.util.List> response = restTemplate.exchange(
+                "http://customer-service/api/v1/internal/orders/" + orderId + "/participants", 
+                org.springframework.http.HttpMethod.GET, 
+                entity, 
+                java.util.List.class
+            );
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> participants = (java.util.List<String>) response.getBody();
+                
+                boolean senderInOrder = participants.contains(senderId);
+                if (!senderInOrder) {
+                    for (String pId : participants) {
+                        if (senderId.equals(getRestaurantOwner(pId))) {
+                            senderInOrder = true;
+                            break;
+                        }
+                    }
+                }
+                
+                boolean targetInOrder = participants.contains(targetUserId);
+                if (!targetInOrder) {
+                    for (String pId : participants) {
+                        if (targetUserId.equals(getRestaurantOwner(pId))) {
+                            targetInOrder = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (senderInOrder && targetInOrder) {
+                    log.info("WebRTC signal authorized via order ID: {}", orderId);
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to check order participants for ID {}: {}", orderId, e.getMessage());
+        }
+        return false;
     }
 
     @java.lang.SuppressWarnings("all")
