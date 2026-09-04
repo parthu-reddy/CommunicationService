@@ -13,6 +13,9 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
+import com.fooddelivery.common.client.RestaurantServiceClient;
+import com.fooddelivery.common.client.CustomerServiceClient;
 
 /**
  * STOMP messaging controller for real-time chat.
@@ -176,7 +179,8 @@ public class ChatMessagingController {
     
     private final java.util.concurrent.ConcurrentHashMap<String, String> restaurantOwnerCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.concurrent.ConcurrentHashMap<String, Boolean> nonRestaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
-    private final org.springframework.web.client.RestTemplate restTemplate;
+    private final RestaurantServiceClient restaurantServiceClient;
+    private final CustomerServiceClient customerServiceClient;
 
     private boolean ownsParticipantRestaurant(UUID sessionId, String potentialOwnerId) {
         com.fooddelivery.chat.dto.ChatSessionResponse session = sessionService.getSessionById(sessionId).orElse(null);
@@ -209,11 +213,7 @@ public class ChatMessagingController {
         
         try {
             log.info("Querying restaurant-service for owner of outlet {}", targetId);
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("X-User-Id", "system");
-            headers.set("X-User-Roles", "SYSTEM");
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
-            org.springframework.http.ResponseEntity<Map> response = restTemplate.exchange("http://restaurant-service/api/v1/internal/restaurants/outlets/" + targetId + "/owner", org.springframework.http.HttpMethod.GET, entity, Map.class);
+            org.springframework.http.ResponseEntity<Map<String, Object>> response = restaurantServiceClient.getOutletOwner(targetId, "communication-service");
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String ownerId = (String) response.getBody().get("ownerId");
                 if (ownerId != null) {
@@ -235,21 +235,10 @@ public class ChatMessagingController {
     private boolean checkOrderParticipants(UUID orderId, String senderId, String targetUserId) {
         try {
             log.info("Session authorization failed. Checking if {} is a valid order ID for WebRTC call.", orderId);
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("X-User-Id", "system");
-            headers.set("X-User-Roles", "ADMIN");
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
-            
-            org.springframework.http.ResponseEntity<java.util.List> response = restTemplate.exchange(
-                "http://customer-service/api/v1/internal/orders/" + orderId + "/participants", 
-                org.springframework.http.HttpMethod.GET, 
-                entity, 
-                java.util.List.class
-            );
+            org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(orderId.toString(), "communication-service");
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                @SuppressWarnings("unchecked")
-                java.util.List<String> participants = (java.util.List<String>) response.getBody();
+                List<String> participants = response.getBody();
                 
                 boolean senderInOrder = participants.contains(senderId);
                 if (!senderInOrder) {
@@ -283,11 +272,12 @@ public class ChatMessagingController {
     }
 
     @java.lang.SuppressWarnings("all")
-    public ChatMessagingController(final SimpMessageSendingOperations messagingTemplate, final ChatMessageService messageService, final CallLogService callLogService, final ChatSessionService sessionService, final org.springframework.web.client.RestTemplate restTemplate) {
+    public ChatMessagingController(final SimpMessageSendingOperations messagingTemplate, final ChatMessageService messageService, final CallLogService callLogService, final ChatSessionService sessionService, final RestaurantServiceClient restaurantServiceClient, final CustomerServiceClient customerServiceClient) {
         this.messagingTemplate = messagingTemplate;
         this.messageService = messageService;
         this.callLogService = callLogService;
         this.sessionService = sessionService;
-        this.restTemplate = restTemplate;
+        this.restaurantServiceClient = restaurantServiceClient;
+        this.customerServiceClient = customerServiceClient;
     }
 }

@@ -67,7 +67,9 @@ public class OpenApiGenerationTest {
     @MockBean
     private org.springframework.messaging.simp.SimpMessageSendingOperations messagingTemplate;
     @MockBean
-    private org.springframework.web.client.RestTemplate restTemplate;
+    private com.fooddelivery.common.client.RestaurantServiceClient restaurantServiceClient;
+    @MockBean
+    private com.fooddelivery.common.client.CustomerServiceClient customerServiceClient;
 
 
     @Autowired(required = false)

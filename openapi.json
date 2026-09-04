@@ -12,6 +12,7 @@
     "/api/v1/chat/sessions" : {
       "get" : {
         "tags" : [ "chat-session-controller" ],
+        "summary" : "Get the chat session for a specific order",
         "operationId" : "getSessionByOrderId",
         "parameters" : [ {
           "name" : "orderId",
@@ -27,10 +28,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "object"
-                  }
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
@@ -39,6 +37,7 @@
       },
       "post" : {
         "tags" : [ "chat-session-controller" ],
+        "summary" : "Create or retrieve a chat session for an order",
         "operationId" : "createOrGetSession",
         "requestBody" : {
           "content" : {
@@ -56,10 +55,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "object"
-                  }
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
@@ -162,6 +158,7 @@
     "/api/v1/chat/sessions/{sessionId}/participants" : {
       "post" : {
         "tags" : [ "chat-session-controller" ],
+        "summary" : "Add a participant to an existing session",
         "operationId" : "addParticipant",
         "parameters" : [ {
           "name" : "sessionId",
@@ -188,10 +185,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "object"
-                  }
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
@@ -220,6 +214,7 @@
     "/api/v1/chat/sessions/{sessionId}/messages" : {
       "get" : {
         "tags" : [ "chat-session-controller" ],
+        "summary" : "Get paginated message history for a session",
         "operationId" : "getMessages",
         "parameters" : [ {
           "name" : "sessionId",
@@ -254,10 +249,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "object",
-                  "additionalProperties" : {
-                    "type" : "object"
-                  }
+                  "$ref" : "#/components/schemas/ApiResponsePageChatMessageDto"
                 }
               }
             }
@@ -298,6 +290,56 @@
           }
         }
       },
+      "ApiResponseChatSessionResponse" : {
+        "required" : [ "message", "success", "timestamp" ],
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/ChatSessionResponse"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "ChatSessionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "sessionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "sessionType" : {
+            "type" : "string"
+          },
+          "referenceId" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "participants" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ParticipantDto"
+            }
+          }
+        }
+      },
       "IceServer" : {
         "required" : [ "urls" ],
         "type" : "object",
@@ -322,6 +364,152 @@
             "items" : {
               "$ref" : "#/components/schemas/IceServer"
             }
+          }
+        }
+      },
+      "ApiResponsePageChatMessageDto" : {
+        "required" : [ "message", "success", "timestamp" ],
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/PageChatMessageDto"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "ChatMessageDto" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "sessionId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "senderId" : {
+            "type" : "string"
+          },
+          "senderName" : {
+            "type" : "string"
+          },
+          "senderType" : {
+            "type" : "string"
+          },
+          "messageType" : {
+            "type" : "string"
+          },
+          "content" : {
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "PageChatMessageDto" : {
+        "required" : [ "content", "empty", "first", "last", "number", "numberOfElements", "size", "totalElements", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "sort" : {
+            "$ref" : "#/components/schemas/SortObject"
+          },
+          "pageable" : {
+            "$ref" : "#/components/schemas/PageableObject"
+          },
+          "numberOfElements" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChatMessageDto"
+            }
+          },
+          "number" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "first" : {
+            "type" : "boolean"
+          },
+          "last" : {
+            "type" : "boolean"
+          },
+          "empty" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "PageableObject" : {
+        "required" : [ "offset", "pageNumber", "pageSize", "paged", "unpaged" ],
+        "type" : "object",
+        "properties" : {
+          "unpaged" : {
+            "type" : "boolean"
+          },
+          "sort" : {
+            "$ref" : "#/components/schemas/SortObject"
+          },
+          "paged" : {
+            "type" : "boolean"
+          },
+          "pageNumber" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "pageSize" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "offset" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "SortObject" : {
+        "required" : [ "empty", "sorted", "unsorted" ],
+        "type" : "object",
+        "properties" : {
+          "empty" : {
+            "type" : "boolean"
+          },
+          "sorted" : {
+            "type" : "boolean"
+          },
+          "unsorted" : {
+            "type" : "boolean"
           }
         }
       }
