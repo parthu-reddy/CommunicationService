@@ -12,8 +12,8 @@ import org.springframework.cloud.contract.stubrunner.spring.StubRunnerProperties
 import org.springframework.context.annotation.Configuration;
 
 @SpringBootTest(classes = ContractConsumerTest.TestConfig.class, webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
-    "customer-service.url=http://localhost:${stubrunner.runningstubs.food-delivery-backend.port}",
-    "restaurant-service.url=http://localhost:${stubrunner.runningstubs.restaurant-application.port}"
+    "stubrunner.idsToServiceIds.food-delivery-backend=customer-service",
+    "stubrunner.idsToServiceIds.restaurant-application=restaurant-service"
 })
 @AutoConfigureStubRunner(ids = {
     "com.fooddelivery:food-delivery-backend:+:stubs",
@@ -27,6 +27,7 @@ public class ContractConsumerTest {
             DataSourceTransactionManagerAutoConfiguration.class,
             HibernateJpaAutoConfiguration.class
     })
+    @org.springframework.cloud.openfeign.EnableFeignClients(basePackages = "com.fooddelivery.common.client")
     static class TestConfig {
         @org.springframework.context.annotation.Bean
         public org.springframework.web.client.RestTemplate restTemplate() {
@@ -35,21 +36,29 @@ public class ContractConsumerTest {
     }
 
     @Autowired
-    private org.springframework.web.client.RestTemplate restTemplate;
+    private com.fooddelivery.common.client.CustomerServiceClient customerServiceClient;
 
-    // Stub runner assigns this at runtime. It used to be hardcoded to 8090, which collided with the
-    // three other modules that also pinned 8090 and made a parallel build race.
-    @org.springframework.beans.factory.annotation.Value("${stubrunner.runningstubs.food-delivery-backend.port}")
-    private int customerServiceStubPort;
+    @Autowired
+    private com.fooddelivery.common.client.RestaurantServiceClient restaurantServiceClient;
 
     @Test
-    public void testClientInvocations() {
-        org.springframework.http.ResponseEntity<String[]> response = restTemplate.getForEntity(
-            "http://localhost:" + customerServiceStubPort
-                + "/api/v1/internal/orders/123e4567-e89b-12d3-a456-426614174000/participants",
-            String[].class
+    public void testCustomerClientInvocations() {
+        org.springframework.http.ResponseEntity<java.util.List<String>> response = customerServiceClient.getOrderParticipants(
+            "123e4567-e89b-12d3-a456-426614174000",
+            "communication-service"
         );
         org.junit.jupiter.api.Assertions.assertEquals(200, response.getStatusCodeValue());
         org.junit.jupiter.api.Assertions.assertNotNull(response.getBody());
+    }
+
+    @Test
+    public void testRestaurantClientInvocations() {
+        org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restaurantServiceClient.getOutletOwner(
+            "123e4567-e89b-12d3-a456-426614174000",
+            "communication-service"
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(200, response.getStatusCodeValue());
+        org.junit.jupiter.api.Assertions.assertNotNull(response.getBody());
+        org.junit.jupiter.api.Assertions.assertEquals("321e4567-e89b-12d3-a456-426614174000", response.getBody().get("ownerId"));
     }
 }
