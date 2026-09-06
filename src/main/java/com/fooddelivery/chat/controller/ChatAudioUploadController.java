@@ -32,28 +32,28 @@ public class ChatAudioUploadController {
 
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/upload-audio")
-    public ResponseEntity<Map<String, Object>> uploadAudio(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<com.fooddelivery.common.dto.ApiResponse<com.fooddelivery.chat.dto.UploadResponseDto>> uploadAudio(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
         // 1. Authentication check
         String userId = authentication != null ? authentication.getName() : null;
         if (userId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "Authentication required"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(com.fooddelivery.common.dto.ApiResponse.error("Authentication required"));
         }
         // 2. Authorization check — must be a participant
         if (!sessionService.isParticipant(sessionId, userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("success", false, "message", "Access Denied: Not a participant of this chat session"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(com.fooddelivery.common.dto.ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         // 3. Validate file presence
         if (file == null || file.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "A file must be provided"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("A file must be provided"));
         }
         // 4. Validate content type (allow audio and video/webm because MediaRecorder default is video/webm in some browsers)
         String contentType = file.getContentType();
         if (contentType == null || (!contentType.startsWith("audio/") && !contentType.startsWith("video/webm") && !contentType.startsWith("video/mp4"))) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Only audio/webm or audio/mp4 files are allowed"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("Only audio/webm or audio/mp4 files are allowed"));
         }
         // 5. Validate file size
         if (file.getSize() > MAX_FILE_SIZE) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File size exceeds 25MB limit"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("File size exceeds 25MB limit"));
         }
         try {
             byte[] audioBytes = file.getBytes();
@@ -72,10 +72,12 @@ public class ChatAudioUploadController {
             "AUDIO");
             // Broadcast the audio message via STOMP
             messagingTemplate.convertAndSend("/topic/chat/" + sessionId.toString(), savedMessage);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Audio recording uploaded successfully", "data", Map.of("audioUrl", publicUrl, "messageId", savedMessage.getId().toString())));
+            return ResponseEntity.ok(com.fooddelivery.common.dto.ApiResponse.success(
+                com.fooddelivery.chat.dto.UploadResponseDto.builder().url(publicUrl).messageId(savedMessage.getId().toString()).build(),
+                "Audio recording uploaded successfully"));
         } catch (Exception e) {
             log.error("Failed to upload chat audio recording for session {}", sessionId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "message", "Failed to upload audio recording: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(com.fooddelivery.common.dto.ApiResponse.error("Failed to upload audio recording: " + e.getMessage()));
         }
     }
 

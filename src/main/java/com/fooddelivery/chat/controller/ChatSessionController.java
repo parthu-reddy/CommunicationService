@@ -107,13 +107,13 @@ public class ChatSessionController {
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @GetMapping("/sessions/{sessionId}/messages")
     @Operation(summary = "Get paginated message history for a session")
-    public ResponseEntity<ApiResponse<Page<ChatMessageDto>>> getMessages(@PathVariable UUID sessionId, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size, Authentication authentication) {
+    public ResponseEntity<ApiResponse<com.fooddelivery.common.dto.PageResponseDto<ChatMessageDto>>> getMessages(@PathVariable UUID sessionId, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
         if (userId == null || !sessionService.isParticipant(sessionId, userId)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         Page<ChatMessageDto> messages = messageService.getMessageHistory(sessionId, page, size);
-        return ResponseEntity.ok(ApiResponse.success(messages, "Success"));
+        return ResponseEntity.ok(ApiResponse.success(com.fooddelivery.common.dto.PageResponseDto.of(messages), "Success"));
     }
 
     /**

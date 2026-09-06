@@ -33,34 +33,34 @@ public class ChatImageUploadController {
 
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/upload-image")
-    public ResponseEntity<Map<String, Object>> uploadImage(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<com.fooddelivery.common.dto.ApiResponse<com.fooddelivery.chat.dto.UploadResponseDto>> uploadImage(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
         // 1. Authentication check
         String userId = authentication != null ? authentication.getName() : null;
         if (userId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "Authentication required"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(com.fooddelivery.common.dto.ApiResponse.error("Authentication required"));
         }
         // 2. Authorization check — must be a participant
         if (!sessionService.isParticipant(sessionId, userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("success", false, "message", "Access Denied: Not a participant of this chat session"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(com.fooddelivery.common.dto.ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         // 3. Validate file presence
         if (file == null || file.isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "A file must be provided"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("A file must be provided"));
         }
         // 4. Validate content type
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Only image files are allowed"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("Only image files are allowed"));
         }
         // 5. Validate file size
         if (file.getSize() > MAX_FILE_SIZE) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "File size exceeds 5MB limit"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("File size exceeds 5MB limit"));
         }
         // 6. Check image count limit (max 4 per session per user)
         long currentImageCount = messageService.countImagesInSessionByUser(sessionId, userId);
         if (currentImageCount >= 4) {
             log.warn("Upload rejected: User {} in Session {} reached the maximum limit of 4 images. Current count: {}", userId, sessionId, currentImageCount);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Maximum limit of 4 images per user reached for this session"));
+            return ResponseEntity.badRequest().body(com.fooddelivery.common.dto.ApiResponse.error("Maximum limit of 4 images per user reached for this session"));
         }
         try {
             byte[] imageBytes = file.getBytes();
@@ -85,10 +85,12 @@ public class ChatImageUploadController {
             "IMAGE");
             // Broadcast the image message via STOMP
             messagingTemplate.convertAndSend("/topic/chat/" + sessionId.toString(), savedMessage);
-            return ResponseEntity.ok(Map.of("success", true, "message", "Image uploaded successfully", "data", Map.of("imageUrl", publicUrl, "messageId", savedMessage.getId().toString())));
+            return ResponseEntity.ok(com.fooddelivery.common.dto.ApiResponse.success(
+                com.fooddelivery.chat.dto.UploadResponseDto.builder().url(publicUrl).messageId(savedMessage.getId().toString()).build(),
+                "Image uploaded successfully"));
         } catch (Exception e) {
             log.error("Failed to upload chat image for session {}", sessionId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "message", "Failed to upload image: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(com.fooddelivery.common.dto.ApiResponse.error("Failed to upload image: " + e.getMessage()));
         }
     }
 
