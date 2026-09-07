@@ -1,69 +1,61 @@
 {
-  "openapi": "3.0.1",
-  "info": {
-    "title": "OpenAPI definition",
-    "version": "v0"
+  "openapi" : "3.0.1",
+  "info" : {
+    "title" : "OpenAPI definition",
+    "version" : "v0"
   },
-  "servers": [
-    {
-      "url": "http://localhost",
-      "description": "Generated server url"
-    }
-  ],
-  "paths": {
-    "/api/v1/chat/sessions": {
-      "get": {
-        "tags": [
-          "chat-session-controller"
-        ],
-        "summary": "Get the chat session for a specific order",
-        "operationId": "getSessionByOrderId",
-        "parameters": [
-          {
-            "name": "orderId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+  "servers" : [ {
+    "url" : "http://localhost",
+    "description" : "Generated server url"
+  } ],
+  "paths" : {
+    "/api/v1/chat/sessions" : {
+      "get" : {
+        "tags" : [ "chat-session-controller" ],
+        "summary" : "Get the chat session for a specific order",
+        "operationId" : "getSessionByOrderId",
+        "parameters" : [ {
+          "name" : "orderId",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseChatSessionResponse"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
           }
         }
       },
-      "post": {
-        "tags": [
-          "chat-session-controller"
-        ],
-        "summary": "Create or retrieve a chat session for an order",
-        "operationId": "createOrGetSession",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSessionRequest"
+      "post" : {
+        "tags" : [ "chat-session-controller" ],
+        "summary" : "Create or retrieve a chat session for an order",
+        "operationId" : "createOrGetSession",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateSessionRequest"
               }
             }
           },
-          "required": true
+          "required" : true
         },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseChatSessionResponse"
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
@@ -71,51 +63,42 @@
         }
       }
     },
-    "/api/v1/chat/sessions/{sessionId}/upload-image": {
-      "post": {
-        "tags": [
-          "chat-image-upload-controller"
-        ],
-        "operationId": "uploadImage",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+    "/api/v1/chat/sessions/{sessionId}/upload-image" : {
+      "post" : {
+        "tags" : [ "chat-image-upload-controller" ],
+        "operationId" : "uploadImage",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
           }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "required": [
-                  "file"
-                ],
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "required" : [ "file" ],
+                "type" : "object",
+                "properties" : {
+                  "file" : {
+                    "type" : "string",
+                    "format" : "binary"
                   }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "object"
-                  }
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponseUploadResponseDto"
                 }
               }
             }
@@ -123,51 +106,42 @@
         }
       }
     },
-    "/api/v1/chat/sessions/{sessionId}/upload-audio": {
-      "post": {
-        "tags": [
-          "chat-audio-upload-controller"
-        ],
-        "operationId": "uploadAudio",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+    "/api/v1/chat/sessions/{sessionId}/upload-audio" : {
+      "post" : {
+        "tags" : [ "chat-audio-upload-controller" ],
+        "operationId" : "uploadAudio",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
           }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "required": [
-                  "file"
-                ],
-                "type": "object",
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "required" : [ "file" ],
+                "type" : "object",
+                "properties" : {
+                  "file" : {
+                    "type" : "string",
+                    "format" : "binary"
                   }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "type": "object"
-                  }
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponseUploadResponseDto"
                 }
               }
             }
@@ -175,41 +149,37 @@
         }
       }
     },
-    "/api/v1/chat/sessions/{sessionId}/participants": {
-      "post": {
-        "tags": [
-          "chat-session-controller"
-        ],
-        "summary": "Add a participant to an existing session",
-        "operationId": "addParticipant",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
+    "/api/v1/chat/sessions/{sessionId}/participants" : {
+      "post" : {
+        "tags" : [ "chat-session-controller" ],
+        "summary" : "Add a participant to an existing session",
+        "operationId" : "addParticipant",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
           }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ParticipantDto"
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ParticipantDto"
               }
             }
           },
-          "required": true
+          "required" : true
         },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseChatSessionResponse"
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponseChatSessionResponse"
                 }
               }
             }
@@ -217,19 +187,17 @@
         }
       }
     },
-    "/api/v1/chat/webrtc/ice-servers": {
-      "get": {
-        "tags": [
-          "turn-credential-controller"
-        ],
-        "operationId": "getIceServers",
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TurnCredentialsResponse"
+    "/api/v1/chat/webrtc/ice-servers" : {
+      "get" : {
+        "tags" : [ "turn-credential-controller" ],
+        "operationId" : "getIceServers",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TurnCredentialsResponse"
                 }
               }
             }
@@ -237,51 +205,45 @@
         }
       }
     },
-    "/api/v1/chat/sessions/{sessionId}/messages": {
-      "get": {
-        "tags": [
-          "chat-session-controller"
-        ],
-        "summary": "Get paginated message history for a session",
-        "operationId": "getMessages",
-        "parameters": [
-          {
-            "name": "sessionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 0
-            }
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 50
-            }
+    "/api/v1/chat/sessions/{sessionId}/messages" : {
+      "get" : {
+        "tags" : [ "chat-session-controller" ],
+        "summary" : "Get paginated message history for a session",
+        "operationId" : "getMessages",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
           }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponsePageChatMessageDto"
+        }, {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "size",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponsePageResponseDtoChatMessageDto"
                 }
               }
             }
@@ -290,296 +252,243 @@
       }
     }
   },
-  "components": {
-    "schemas": {
-      "CreateSessionRequest": {
-        "required": [
-          "id",
-          "participants"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
+  "components" : {
+    "schemas" : {
+      "CreateSessionRequest" : {
+        "required" : [ "orderId", "participants" ],
+        "type" : "object",
+        "properties" : {
+          "orderId" : {
+            "type" : "string"
           },
-          "participants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ParticipantDto"
+          "participants" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ParticipantDto"
             }
           }
         }
       },
-      "ParticipantDto": {
-        "required": [
-          "entityType",
-          "userId"
-        ],
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string"
+      "ParticipantDto" : {
+        "required" : [ "entityType", "userId" ],
+        "type" : "object",
+        "properties" : {
+          "userId" : {
+            "type" : "string"
           },
-          "entityType": {
-            "type": "string"
+          "entityType" : {
+            "type" : "string"
           },
-          "displayName": {
-            "type": "string"
+          "displayName" : {
+            "type" : "string"
           }
         }
       },
-      "ApiResponseChatSessionResponse": {
-        "required": [
-          "message",
-          "success",
-          "timestamp"
-        ],
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
+      "ApiResponseChatSessionResponse" : {
+        "required" : [ "message", "success", "timestamp" ],
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean"
           },
-          "message": {
-            "type": "string"
+          "message" : {
+            "type" : "string"
           },
-          "errorCode": {
-            "type": "string"
+          "errorCode" : {
+            "type" : "string"
           },
-          "data": {
-            "$ref": "#/components/schemas/ChatSessionResponse"
+          "data" : {
+            "$ref" : "#/components/schemas/ChatSessionResponse"
           },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
-      "ChatSessionResponse": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string",
-            "format": "uuid"
+      "ChatSessionResponse" : {
+        "type" : "object",
+        "properties" : {
+          "sessionId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          "sessionType": {
-            "type": "string"
+          "sessionType" : {
+            "type" : "string"
           },
-          "referenceId": {
-            "type": "string"
+          "referenceId" : {
+            "type" : "string"
           },
-          "isActive": {
-            "type": "boolean"
+          "isActive" : {
+            "type" : "boolean"
           },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
           },
-          "participants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ParticipantDto"
+          "participants" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ParticipantDto"
             }
           }
         }
       },
-      "IceServer": {
-        "required": [
-          "urls"
-        ],
-        "type": "object",
-        "properties": {
-          "urls": {
-            "type": "string"
+      "ApiResponseUploadResponseDto" : {
+        "required" : [ "message", "success", "timestamp" ],
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean"
           },
-          "username": {
-            "type": "string"
+          "message" : {
+            "type" : "string"
           },
-          "credential": {
-            "type": "string"
+          "errorCode" : {
+            "type" : "string"
+          },
+          "data" : {
+            "$ref" : "#/components/schemas/UploadResponseDto"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
-      "TurnCredentialsResponse": {
-        "required": [
-          "iceServers"
-        ],
-        "type": "object",
-        "properties": {
-          "iceServers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/IceServer"
+      "UploadResponseDto" : {
+        "type" : "object",
+        "properties" : {
+          "url" : {
+            "type" : "string"
+          },
+          "messageId" : {
+            "type" : "string"
+          }
+        }
+      },
+      "IceServer" : {
+        "required" : [ "urls" ],
+        "type" : "object",
+        "properties" : {
+          "urls" : {
+            "type" : "string"
+          },
+          "username" : {
+            "type" : "string"
+          },
+          "credential" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TurnCredentialsResponse" : {
+        "required" : [ "iceServers" ],
+        "type" : "object",
+        "properties" : {
+          "iceServers" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/IceServer"
             }
           }
         }
       },
-      "ApiResponsePageChatMessageDto": {
-        "required": [
-          "message",
-          "success",
-          "timestamp"
-        ],
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
+      "ApiResponsePageResponseDtoChatMessageDto" : {
+        "required" : [ "message", "success", "timestamp" ],
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean"
           },
-          "message": {
-            "type": "string"
+          "message" : {
+            "type" : "string"
           },
-          "errorCode": {
-            "type": "string"
+          "errorCode" : {
+            "type" : "string"
           },
-          "data": {
-            "$ref": "#/components/schemas/PageChatMessageDto"
+          "data" : {
+            "$ref" : "#/components/schemas/PageResponseDtoChatMessageDto"
           },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
-      "ChatMessageDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+      "ChatMessageDto" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          "sessionId": {
-            "type": "string",
-            "format": "uuid"
+          "sessionId" : {
+            "type" : "string",
+            "format" : "uuid"
           },
-          "senderId": {
-            "type": "string"
+          "senderId" : {
+            "type" : "string"
           },
-          "senderName": {
-            "type": "string"
+          "senderName" : {
+            "type" : "string"
           },
-          "senderType": {
-            "type": "string"
+          "senderType" : {
+            "type" : "string"
           },
-          "messageType": {
-            "type": "string"
+          "messageType" : {
+            "type" : "string"
           },
-          "content": {
-            "type": "string"
+          "content" : {
+            "type" : "string"
           },
-          "imageUrl": {
-            "type": "string"
+          "imageUrl" : {
+            "type" : "string"
           },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
+          "timestamp" : {
+            "type" : "string",
+            "format" : "date-time"
           }
         }
       },
-      "PageChatMessageDto": {
-        "required": [
-          "content",
-          "empty",
-          "first",
-          "last",
-          "number",
-          "numberOfElements",
-          "size",
-          "totalElements",
-          "totalPages"
-        ],
-        "type": "object",
-        "properties": {
-          "totalPages": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "totalElements": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "sort": {
-            "$ref": "#/components/schemas/SortObject"
-          },
-          "pageable": {
-            "$ref": "#/components/schemas/PageableObject"
-          },
-          "numberOfElements": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "size": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "content": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChatMessageDto"
+      "PageResponseDtoChatMessageDto" : {
+        "required" : [ "content", "empty", "first", "last", "number", "numberOfElements", "size", "totalElements", "totalPages" ],
+        "type" : "object",
+        "properties" : {
+          "content" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChatMessageDto"
             }
           },
-          "number": {
-            "type": "integer",
-            "format": "int32"
+          "totalElements" : {
+            "type" : "integer",
+            "format" : "int64"
           },
-          "first": {
-            "type": "boolean"
+          "totalPages" : {
+            "type" : "integer",
+            "format" : "int32"
           },
-          "last": {
-            "type": "boolean"
+          "last" : {
+            "type" : "boolean"
           },
-          "empty": {
-            "type": "boolean"
-          }
-        }
-      },
-      "PageableObject": {
-        "required": [
-          "offset",
-          "pageNumber",
-          "pageSize",
-          "paged",
-          "unpaged"
-        ],
-        "type": "object",
-        "properties": {
-          "unpaged": {
-            "type": "boolean"
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
           },
-          "sort": {
-            "$ref": "#/components/schemas/SortObject"
+          "number" : {
+            "type" : "integer",
+            "format" : "int32"
           },
-          "paged": {
-            "type": "boolean"
+          "first" : {
+            "type" : "boolean"
           },
-          "pageNumber": {
-            "type": "integer",
-            "format": "int32"
+          "numberOfElements" : {
+            "type" : "integer",
+            "format" : "int32"
           },
-          "pageSize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "offset": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "SortObject": {
-        "required": [
-          "empty",
-          "sorted",
-          "unsorted"
-        ],
-        "type": "object",
-        "properties": {
-          "empty": {
-            "type": "boolean"
-          },
-          "sorted": {
-            "type": "boolean"
-          },
-          "unsorted": {
-            "type": "boolean"
+          "empty" : {
+            "type" : "boolean"
           }
         }
       }
