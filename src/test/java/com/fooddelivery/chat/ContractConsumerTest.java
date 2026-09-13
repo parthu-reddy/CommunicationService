@@ -8,7 +8,6 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerA
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.contract.stubrunner.spring.AutoConfigureStubRunner;
-import org.springframework.cloud.contract.stubrunner.spring.StubRunnerProperties;
 import org.springframework.context.annotation.Configuration;
 
 @SpringBootTest(classes = ContractConsumerTest.TestConfig.class, webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
@@ -18,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
 @AutoConfigureStubRunner(ids = {
     "com.fooddelivery:food-delivery-backend:+:stubs",
     "com.fooddelivery:restaurant-application:+:stubs"
-}, stubsMode = StubRunnerProperties.StubsMode.LOCAL)
+})
 public class ContractConsumerTest {
 
     @org.springframework.boot.SpringBootConfiguration
