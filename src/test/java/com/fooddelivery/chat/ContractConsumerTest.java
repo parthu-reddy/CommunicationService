@@ -10,6 +10,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.contract.stubrunner.spring.AutoConfigureStubRunner;
 import org.springframework.context.annotation.Configuration;
 
+// The only stub-runner test on the platform that did not activate this profile. Without it,
+// application-contract-test.yml never loads, stubrunner.stubs-mode is unset, and the annotation
+// falls back to its CLASSPATH default -- "No stubs were found on classpath". The other fourteen
+// consumers already carried it, which is why this was the single failure.
+@org.springframework.test.context.ActiveProfiles("contract-test")
 @SpringBootTest(classes = ContractConsumerTest.TestConfig.class, webEnvironment = SpringBootTest.WebEnvironment.NONE, properties = {
     "stubrunner.idsToServiceIds.food-delivery-backend=customer-service",
     "stubrunner.idsToServiceIds.restaurant-application=restaurant-service"
