@@ -1,4 +1,9 @@
-package com.fooddelivery.chat;
+// Deliberately OUTSIDE com.fooddelivery.chat. ChatServiceApplication component-scans that package,
+// which meant this class's nested @SpringBootConfiguration -- and its
+// @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration, HibernateJpaAutoConfiguration}) --
+// was scanned into the real application context during tests, leaving it with no
+// entityManagerFactory. A test's configuration must not be reachable by the application's own scan.
+package com.fooddelivery.chatcontract;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
