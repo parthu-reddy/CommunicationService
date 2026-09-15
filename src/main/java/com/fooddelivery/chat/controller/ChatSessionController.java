@@ -37,39 +37,24 @@ public class ChatSessionController {
     @Operation(summary = "Create or retrieve a chat session for an order")
     public ResponseEntity<ApiResponse<ChatSessionResponse>> createOrGetSession(@Valid @RequestBody CreateSessionRequest request, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
-        boolean isRestaurant = authentication != null && authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_RESTAURANT"));
         // Authorization: Ensure the creator is actually part of the session they are trying to create
         boolean isSelfParticipant = request.getParticipants().stream().anyMatch(p -> p.getUserId().equals(userId));
-        if (!isSelfParticipant && !isAdmin(authentication) && !isRestaurant) {
+        if (!isSelfParticipant && !isAdmin(authentication)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You must be a participant to create a session"));
         }
         // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
         if (!isAdmin(authentication)) {
             try {
-                org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(request.getOrderId(), "communication-service");
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    java.util.List<String> authorizedParticipants = response.getBody();
-                    boolean isAuthorized = authorizedParticipants.contains(userId);
-                    // If not directly authorized, check if user is a restaurant owner who owns the participating restaurant
-                    if (!isAuthorized && authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_RESTAURANT"))) {
-                        try {
-                            List<String> ownedOutlets = restaurantServiceClient.getOwnerOutlets(userId, "communication-service");
-                            for (String outletId : ownedOutlets) {
-                                if (authorizedParticipants.contains(outletId)) {
-                                    isAuthorized = true;
-                                    break;
-                                }
-                            }
-                        } catch (Exception e) {
-                            log.error("Failed to fetch owned outlets for restaurant owner {}", userId, e);
-                        }
-                    }
-                    if (!isAuthorized) {
-                        log.warn("Privilege escalation attempt! User {} tried to access order {}", userId, request.getOrderId());
-                        return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
-                    }
-                } else {
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied"));
+                List<String> authorizedParticipants = fetchAuthorizedOrderParticipants(request.getOrderId());
+                if (!isAuthorizedParticipantId(userId, authorizedParticipants)) {
+                    log.warn("Privilege escalation attempt! User {} tried to access order {}", userId, request.getOrderId());
+                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
+                }
+                List<String> unauthorizedRequestedParticipants = findUnauthorizedRequestedParticipants(request.getParticipants(), authorizedParticipants);
+                if (!unauthorizedRequestedParticipants.isEmpty()) {
+                    log.warn("Privilege escalation attempt! User {} tried to add non-order participants {} to order {}",
+                            userId, unauthorizedRequestedParticipants, request.getOrderId());
+                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: One or more participants are not authorized for this order"));
                 }
             } catch (Exception e) {
                 log.error("Failed to validate order participants with customer-service for order {}", request.getOrderId(), e);
@@ -133,7 +118,7 @@ public class ChatSessionController {
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Cannot add participant to this session"));
         }
         // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
-        if (isAddingSelf && !isAlreadyParticipant && !isAdmin(authentication)) {
+        if (!isAdmin(authentication)) {
             try {
                 // We need the orderId (referenceId) from the session
                 ChatSessionResponse sessionOpt = sessionService.getSessionById(sessionId).orElse(null);
@@ -141,15 +126,15 @@ public class ChatSessionController {
                     return ResponseEntity.status(404).body(ApiResponse.error("Session not found"));
                 }
                 String orderId = sessionOpt.getReferenceId();
-                org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(orderId, "communication-service");
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    java.util.List<String> authorizedParticipants = response.getBody();
-                    if (!authorizedParticipants.contains(userId)) {
-                        log.warn("Privilege escalation attempt! User {} tried to join session {} for order {}", userId, sessionId, orderId);
-                        return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized to join this chat session"));
-                    }
-                } else {
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied"));
+                List<String> authorizedParticipants = fetchAuthorizedOrderParticipants(orderId);
+                if (!isAlreadyParticipant && !isAuthorizedParticipantId(userId, authorizedParticipants)) {
+                    log.warn("Privilege escalation attempt! User {} tried to join session {} for order {}", userId, sessionId, orderId);
+                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized to join this chat session"));
+                }
+                if (!isAuthorizedParticipantId(participantDto.getUserId(), authorizedParticipants)) {
+                    log.warn("Privilege escalation attempt! User {} tried to add non-order participant {} to session {} for order {}",
+                            userId, participantDto.getUserId(), sessionId, orderId);
+                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Participant is not authorized for this order"));
                 }
             } catch (Exception e) {
                 log.error("Failed to validate participant addition with customer-service for session {}", sessionId, e);
@@ -164,6 +149,44 @@ public class ChatSessionController {
     private boolean isAdmin(Authentication authentication) {
         if (authentication == null) return false;
         return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SYSTEM"));
+    }
+
+    private List<String> fetchAuthorizedOrderParticipants(String orderId) {
+        org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(orderId, "communication-service");
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            return response.getBody();
+        }
+        throw new IllegalStateException("Unable to load order participants");
+    }
+
+    private List<String> findUnauthorizedRequestedParticipants(List<ParticipantDto> requestedParticipants, List<String> authorizedOrderParticipants) {
+        return requestedParticipants.stream()
+                .map(ParticipantDto::getUserId)
+                .filter(participantId -> !isAuthorizedParticipantId(participantId, authorizedOrderParticipants))
+                .toList();
+    }
+
+    private boolean isAuthorizedParticipantId(String participantId, List<String> authorizedOrderParticipants) {
+        if (participantId == null || participantId.isBlank()) {
+            return false;
+        }
+        if (authorizedOrderParticipants.contains(participantId)) {
+            return true;
+        }
+        return ownsAuthorizedRestaurantOutlet(participantId, authorizedOrderParticipants);
+    }
+
+    private boolean ownsAuthorizedRestaurantOutlet(String ownerId, List<String> authorizedOrderParticipants) {
+        try {
+            List<String> ownedOutlets = restaurantServiceClient.getOwnerOutlets(ownerId, "communication-service");
+            if (ownedOutlets == null || ownedOutlets.isEmpty()) {
+                return false;
+            }
+            return ownedOutlets.stream().anyMatch(authorizedOrderParticipants::contains);
+        } catch (Exception e) {
+            log.debug("Participant {} is not a restaurant owner for this order, or restaurant-service could not verify ownership", ownerId, e);
+            return false;
+        }
     }
 
     @java.lang.SuppressWarnings("all")
