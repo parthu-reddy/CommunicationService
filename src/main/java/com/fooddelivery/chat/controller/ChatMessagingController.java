@@ -65,7 +65,7 @@ public class ChatMessagingController {
             !"REFUND_QUOTE_RESPONSE".equals(request.getMessageType()) &&
             !"REFUND_REQUEST".equals(request.getMessageType()) &&
             !"REFUND_DECISION".equals(request.getMessageType())) {
-            log.warn("Rejected non-TEXT/REFUND message type \'{}\' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
+            log.warn("Rejected non-TEXT/REFUND message type '{}' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
             return;
         }
         // For refund-related messages, we MUST persist synchronously to guarantee OutboxEvent creation
