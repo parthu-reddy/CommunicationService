@@ -18,7 +18,6 @@ import com.fooddelivery.common.outbox.repository.OutboxEventRepository;
 import com.fooddelivery.common.constants.AggregateType;
 import com.fooddelivery.common.constants.EventType;
 import com.fooddelivery.common.enums.OutboxStatus;
-import java.time.LocalDateTime;
 
 @Service
 @lombok.extern.slf4j.Slf4j
@@ -62,7 +61,7 @@ public class ChatMessageService {
                 .aggregateId(sessionId.toString())
                 .eventType(eventType)
                 .payload(content)
-                .createdAt(LocalDateTime.now())
+                .createdAt(Instant.now())
                 .status(OutboxStatus.UNPROCESSED)
                 .retryCount(0)
                 .build();
