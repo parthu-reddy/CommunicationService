@@ -25,6 +25,7 @@ public class ChatSession {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
     @OneToMany(mappedBy = "chatSession", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
-    private List<SessionParticipant> participants;
+    @lombok.Builder.Default
+    private List<SessionParticipant> participants = new ArrayList<>();
 
 }
