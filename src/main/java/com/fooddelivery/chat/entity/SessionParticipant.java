@@ -26,4 +26,11 @@ public class SessionParticipant {
     @Column(name = "joined_at", nullable = false, updatable = false)
     private Instant joinedAt;
 
+    @PrePersist
+    void initializeJoinedAt() {
+        if (joinedAt == null) {
+            joinedAt = Instant.now();
+        }
+    }
+
 }
