@@ -39,7 +39,9 @@ public class ChatMessagingController {
     @MessageMapping("/chat.send/{sessionId}")
     public void handleChatMessage(@DestinationVariable String sessionId, @Payload SendMessageRequest request, Principal principal) {
         String senderId = principal != null ? principal.getName() : "anonymous";
-        log.info("STOMP message from {} in session {}: {}", senderId, sessionId, request.getContent());
+        int contentLength = request.getContent() == null ? 0 : request.getContent().length();
+        log.info("STOMP message received from {} in session {} ({} chars)",
+                senderId, sessionId, contentLength);
         try {
             if (!sessionService.isParticipant(UUID.fromString(sessionId), senderId)) {
                 log.warn("Rejected message from non-participant {} for session {}", senderId, sessionId);

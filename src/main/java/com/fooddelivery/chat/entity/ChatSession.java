@@ -28,4 +28,11 @@ public class ChatSession {
     @lombok.Builder.Default
     private List<SessionParticipant> participants = new ArrayList<>();
 
+    @PrePersist
+    void initializeCreatedAt() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
+
 }
