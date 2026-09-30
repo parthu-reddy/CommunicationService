@@ -1,12 +1,13 @@
 package com.fooddelivery.chat.controller;
 
 import com.fooddelivery.chat.dto.ChatMessageDto;
+import com.fooddelivery.chat.service.ChatEventBroadcaster;
 import com.fooddelivery.chat.service.ChatMessageService;
+import com.fooddelivery.chat.service.ChatSessionAccessService;
 import com.fooddelivery.chat.service.ChatSessionService;
 import com.fooddelivery.common.service.CloudflareR2Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,8 +27,9 @@ public class ChatImageUploadController {
 
     private final CloudflareR2Service cloudflareR2Service;
     private final ChatSessionService sessionService;
+    private final ChatSessionAccessService accessService;
     private final ChatMessageService messageService;
-    private final SimpMessageSendingOperations messagingTemplate;
+    private final ChatEventBroadcaster chatEventBroadcaster;
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
     private static final int MAX_IMAGE_DIMENSION = 5000; // pixels
 
@@ -40,7 +42,7 @@ public class ChatImageUploadController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(com.fooddelivery.common.dto.ApiResponse.error("Authentication required"));
         }
         // 2. Authorization check — must be a participant
-        if (!sessionService.isParticipant(sessionId, userId)) {
+        if (!accessService.canAccessSession(sessionId, authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(com.fooddelivery.common.dto.ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         // 3. Validate file presence
@@ -81,10 +83,11 @@ public class ChatImageUploadController {
             String publicUrl = cloudflareR2Service.uploadImage(imageBytes, folder, fileName, contentType);
             log.info("Chat image uploaded: session={}, user={}, url={}", sessionId, userId, publicUrl);
             // 9. Auto-save an IMAGE message and broadcast to all subscribers
-            ChatMessageDto savedMessage = messageService.saveMessage(sessionId, userId, publicUrl,  // content is the image URL
-            "IMAGE");
+            ChatMessageDto savedMessage = accessService.isSupportModerator(authentication)
+                    ? messageService.saveSupportModeratorMessage(sessionId, userId, publicUrl, "IMAGE")
+                    : messageService.saveMessage(sessionId, userId, publicUrl, "IMAGE");
             // Broadcast the image message via STOMP
-            messagingTemplate.convertAndSend("/topic/chat/" + sessionId.toString(), savedMessage);
+            chatEventBroadcaster.broadcastMessage(sessionId, savedMessage);
             return ResponseEntity.ok(com.fooddelivery.common.dto.ApiResponse.success(
                 com.fooddelivery.chat.dto.UploadResponseDto.builder().url(publicUrl).messageId(savedMessage.getId().toString()).build(),
                 "Image uploaded successfully"));
@@ -122,10 +125,11 @@ public class ChatImageUploadController {
     }
 
     @java.lang.SuppressWarnings("all")
-    public ChatImageUploadController(final CloudflareR2Service cloudflareR2Service, final ChatSessionService sessionService, final ChatMessageService messageService, final SimpMessageSendingOperations messagingTemplate) {
+    public ChatImageUploadController(final CloudflareR2Service cloudflareR2Service, final ChatSessionService sessionService, final ChatSessionAccessService accessService, final ChatMessageService messageService, final ChatEventBroadcaster chatEventBroadcaster) {
         this.cloudflareR2Service = cloudflareR2Service;
         this.sessionService = sessionService;
+        this.accessService = accessService;
         this.messageService = messageService;
-        this.messagingTemplate = messagingTemplate;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 }

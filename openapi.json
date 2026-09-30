@@ -152,7 +152,7 @@
     "/api/v1/chat/sessions/{sessionId}/participants" : {
       "post" : {
         "tags" : [ "chat-session-controller" ],
-        "summary" : "Add a participant to an existing session",
+        "summary" : "Synchronize an existing order session with its authoritative roster",
         "operationId" : "addParticipant",
         "parameters" : [ {
           "name" : "sessionId",
@@ -163,16 +163,6 @@
             "format" : "uuid"
           }
         } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ParticipantDto"
-              }
-            }
-          },
-          "required" : true
-        },
         "responses" : {
           "200" : {
             "description" : "OK",
@@ -255,31 +245,10 @@
   "components" : {
     "schemas" : {
       "CreateSessionRequest" : {
-        "required" : [ "orderId", "participants" ],
+        "required" : [ "orderId" ],
         "type" : "object",
         "properties" : {
           "orderId" : {
-            "type" : "string"
-          },
-          "participants" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ParticipantDto"
-            }
-          }
-        }
-      },
-      "ParticipantDto" : {
-        "required" : [ "entityType", "userId" ],
-        "type" : "object",
-        "properties" : {
-          "userId" : {
-            "type" : "string"
-          },
-          "entityType" : {
-            "type" : "string"
-          },
-          "displayName" : {
             "type" : "string"
           }
         }
@@ -331,6 +300,21 @@
             "items" : {
               "$ref" : "#/components/schemas/ParticipantDto"
             }
+          }
+        }
+      },
+      "ParticipantDto" : {
+        "required" : [ "entityType", "userId" ],
+        "type" : "object",
+        "properties" : {
+          "userId" : {
+            "type" : "string"
+          },
+          "entityType" : {
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
           }
         }
       },

@@ -15,42 +15,40 @@ import java.util.stream.Collectors;
 @Service
 @lombok.extern.slf4j.Slf4j
 public class ChatSessionService {
+    private static final String ORDER_SESSION_TYPE = "ORDER";
     @java.lang.SuppressWarnings("all")
 
     private final ChatSessionRepository sessionRepository;
     private final SessionParticipantRepository participantRepository;
 
     /**
-     * Creates a new chat session for an order, or returns the existing one.
-     * Idempotent: if a session for this orderId already exists, it is returned
-     * with any new participants added.
+     * Creates or reconciles an order chat using a roster resolved by trusted services.
+     *
+     * <p>Any existing participant that is no longer canonical is removed. This repairs old
+     * polluted sessions as they are accessed and prevents caller-provided identities from
+     * persisting as chat members.
      */
     @Transactional
-    public ChatSessionResponse createOrGetSession(CreateSessionRequest request) {
-        Optional<ChatSession> existing = sessionRepository.findByReferenceId(request.getOrderId());
+    public ChatSessionResponse createOrGetSession(String orderId, List<ParticipantDto> canonicalParticipants) {
+        validateCanonicalParticipants(canonicalParticipants);
+        sessionRepository.lockOrderSessionCreation(ORDER_SESSION_TYPE + ":" + orderId);
+        Optional<ChatSession> existing = sessionRepository.findBySessionTypeAndReferenceId(ORDER_SESSION_TYPE, orderId);
         ChatSession session;
         if (existing.isPresent()) {
             session = existing.get();
-            log.info("Found existing chat session {} for order {}", session.getId(), request.getOrderId());
-            // Add any new participants that don't already exist
-            addMissingParticipants(session, request.getParticipants());
+            log.info("Found existing chat session {} for order {}", session.getId(), orderId);
         } else {
-            session = ChatSession.builder().sessionType("ORDER").referenceId(request.getOrderId()).isActive(true).build();
+            session = ChatSession.builder().sessionType(ORDER_SESSION_TYPE).referenceId(orderId).isActive(true).build();
             session = sessionRepository.save(session);
-            log.info("Created new chat session {} for order {}", session.getId(), request.getOrderId());
-            // Add all participants
-            for (ParticipantDto p : request.getParticipants()) {
-                SessionParticipant participant = SessionParticipant.builder().chatSession(session).userId(p.getUserId()).entityType(p.getEntityType()).displayName(p.getDisplayName()).build();
-                session.getParticipants().add(participant);
-            }
-            session = sessionRepository.save(session);
+            log.info("Created new chat session {} for order {}", session.getId(), orderId);
         }
+        session = synchronize(session, canonicalParticipants);
         return toResponse(session);
     }
 
     @Transactional(readOnly = true)
     public Optional<ChatSessionResponse> getSessionByOrderId(String orderId) {
-        return sessionRepository.findByReferenceId(orderId).map(this::toResponse);
+        return sessionRepository.findBySessionTypeAndReferenceId(ORDER_SESSION_TYPE, orderId).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -58,18 +56,12 @@ public class ChatSessionService {
         return sessionRepository.findById(sessionId).map(this::toResponse);
     }
 
-    /**
-     * Adds a participant to an existing session (e.g., when a rider gets assigned).
-     */
+    /** Synchronizes an existing session to the supplied canonical roster. */
     @Transactional
-    public ChatSessionResponse addParticipant(UUID sessionId, ParticipantDto participantDto) {
+    public ChatSessionResponse synchronizeParticipants(UUID sessionId, List<ParticipantDto> canonicalParticipants) {
         ChatSession session = sessionRepository.findById(sessionId).orElseThrow(() -> new IllegalArgumentException("Session not found: " + sessionId));
-        if (!participantRepository.existsByChatSessionIdAndUserId(sessionId, participantDto.getUserId())) {
-            SessionParticipant participant = SessionParticipant.builder().chatSession(session).userId(participantDto.getUserId()).entityType(participantDto.getEntityType()).displayName(participantDto.getDisplayName()).build();
-            session.getParticipants().add(participant);
-            session = sessionRepository.save(session);
-            log.info("Added participant {} to session {}", participantDto.getUserId(), sessionId);
-        }
+        validateCanonicalParticipants(canonicalParticipants);
+        session = synchronize(session, canonicalParticipants);
         return toResponse(session);
     }
 
@@ -81,15 +73,43 @@ public class ChatSessionService {
         return participantRepository.existsByChatSessionIdAndUserId(sessionId, userId);
     }
 
-    private void addMissingParticipants(ChatSession session, List<ParticipantDto> participants) {
-        for (ParticipantDto p : participants) {
-            if (!participantRepository.existsByChatSessionIdAndUserId(session.getId(), p.getUserId())) {
-                SessionParticipant participant = SessionParticipant.builder().chatSession(session).userId(p.getUserId()).entityType(p.getEntityType()).displayName(p.getDisplayName()).build();
-                session.getParticipants().add(participant);
-                log.info("Added missing participant {} to session {}", p.getUserId(), session.getId());
+    private ChatSession synchronize(ChatSession session, List<ParticipantDto> canonicalParticipants) {
+        java.util.Map<String, ParticipantDto> canonicalByUserId = canonicalParticipants.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        ParticipantDto::getUserId,
+                        participant -> participant,
+                        (first, ignored) -> first,
+                        java.util.LinkedHashMap::new));
+
+        session.getParticipants().removeIf(existing -> !canonicalByUserId.containsKey(existing.getUserId()));
+        for (SessionParticipant existing : session.getParticipants()) {
+            ParticipantDto canonical = canonicalByUserId.get(existing.getUserId());
+            existing.setEntityType(canonical.getEntityType());
+            existing.setDisplayName(canonical.getDisplayName());
+        }
+        java.util.Set<String> existingUserIds = session.getParticipants().stream()
+                .map(SessionParticipant::getUserId)
+                .collect(java.util.stream.Collectors.toSet());
+        for (ParticipantDto canonical : canonicalParticipants) {
+            if (!existingUserIds.contains(canonical.getUserId())) {
+                session.getParticipants().add(SessionParticipant.builder()
+                        .chatSession(session)
+                        .userId(canonical.getUserId())
+                        .entityType(canonical.getEntityType())
+                        .displayName(canonical.getDisplayName())
+                        .build());
             }
         }
-        sessionRepository.save(session);
+        return sessionRepository.save(session);
+    }
+
+    private void validateCanonicalParticipants(List<ParticipantDto> canonicalParticipants) {
+        if (canonicalParticipants == null || canonicalParticipants.isEmpty()
+                || canonicalParticipants.stream().anyMatch(participant -> participant == null
+                || participant.getUserId() == null || participant.getUserId().isBlank()
+                || participant.getEntityType() == null || participant.getEntityType().isBlank())) {
+            throw new IllegalArgumentException("Canonical chat participants are required");
+        }
     }
 
     private ChatSessionResponse toResponse(ChatSession session) {

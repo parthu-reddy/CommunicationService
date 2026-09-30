@@ -1,8 +1,5 @@
 package com.fooddelivery.chat.config;
 
-import com.fooddelivery.common.constants.HeaderConstants;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -12,7 +9,8 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
-import com.fooddelivery.chat.repository.SessionParticipantRepository;
+import com.fooddelivery.chat.service.ChatSessionAccessService;
+import com.fooddelivery.chat.service.ChatSupportSubscriptionRegistry;
 import org.springframework.messaging.MessageDeliveryException;
 
 import java.util.Arrays;
@@ -27,18 +25,21 @@ import java.util.stream.Collectors;
  * from the WebSocket session attributes (populated by WebSocketSecurityInterceptor
  * during the HTTP upgrade handshake).
  * <p>
- * Since the API Gateway already validates the JWT and forwards X-User-Id / X-User-Roles
- * headers, we trust those headers and use them for authentication — exactly like
- * the SecurityContextFilter does for REST endpoints.
+ * The handshake interceptor takes these attributes only from SecurityContextFilter after it has
+ * verified the API Gateway's HMAC-signed identity contract. Raw identity headers never reach this
+ * interceptor as a source of truth.
  */
 @Component
 @lombok.extern.slf4j.Slf4j
 public class StompAuthenticationInterceptor implements ChannelInterceptor {
 
-    private final SessionParticipantRepository participantRepository;
+    private final ChatSessionAccessService accessService;
+    private final ChatSupportSubscriptionRegistry supportSubscriptions;
 
-    public StompAuthenticationInterceptor(SessionParticipantRepository participantRepository) {
-        this.participantRepository = participantRepository;
+    public StompAuthenticationInterceptor(ChatSessionAccessService accessService,
+                                          ChatSupportSubscriptionRegistry supportSubscriptions) {
+        this.accessService = accessService;
+        this.supportSubscriptions = supportSubscriptions;
     }
 
     @Override
@@ -52,7 +53,7 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
                 String userId = (String) sessionAttributes.get("userId");
                 String roles = (String) sessionAttributes.get("roles");
 
-                if (userId != null) {
+                if (userId != null && !userId.isBlank()) {
                     List<SimpleGrantedAuthority> authorities = Collections.emptyList();
                     if (roles != null && !roles.isEmpty()) {
                         authorities = Arrays.stream(roles.split(","))
@@ -70,30 +71,56 @@ public class StompAuthenticationInterceptor implements ChannelInterceptor {
                     accessor.setUser(auth);
                     log.info("STOMP CONNECT authenticated: userId={}, roles={}", userId, authorities);
                 } else {
-                    log.warn("STOMP CONNECT with no userId in session attributes — allowing anonymous for SockJS info requests");
+                    throw new MessageDeliveryException("Access Denied: authenticated WebSocket handshake required");
                 }
+            } else {
+                throw new MessageDeliveryException("Access Denied: authenticated WebSocket handshake required");
             }
         } else if (accessor != null && (StompCommand.SUBSCRIBE.equals(accessor.getCommand()) || StompCommand.SEND.equals(accessor.getCommand()))) {
             String destination = accessor.getDestination();
             if (destination != null) {
-                // Extract the UUID from the destination (e.g., /topic/chat/{sessionId} or /topic/chat/{sessionId}/typing)
-                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(".*/chat(?:\\\\.send|\\\\.typing)?/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:/.*)?").matcher(destination);
+                java.util.regex.Matcher matcher = chatDestinationMatcher(accessor.getCommand(), destination);
                 if (matcher.matches()) {
                     try {
                         UUID sessionId = UUID.fromString(matcher.group(1));
                         
                         String userId = accessor.getUser() != null ? accessor.getUser().getName() : null;
-                        if (userId == null || !participantRepository.existsByChatSessionIdAndUserId(sessionId, userId)) {
+                        if (userId == null || !accessService.canAccessSession(sessionId, accessor.getUser())) {
                             log.warn("User {} denied access to destination {}", userId, destination);
                             throw new MessageDeliveryException("Access Denied: Not a participant of this chat session");
+                        }
+                        if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())
+                                && accessService.isSupportModerator(accessor.getUser())) {
+                            supportSubscriptions.register(sessionId, userId, accessor.getSessionId());
                         }
                     } catch (IllegalArgumentException e) {
                         log.error("Failed to parse UUID from matched destination: {}", destination, e);
                     }
+                } else if (isChatDestination(destination)) {
+                    // Client subscriptions must use the protected logical user destination. Raw
+                    // /topic and /queue destinations can otherwise bypass roster authorization.
+                    throw new MessageDeliveryException("Access Denied: unsupported chat destination");
                 }
             }
         }
 
         return message;
+    }
+
+    private java.util.regex.Matcher chatDestinationMatcher(StompCommand command, String destination) {
+        String uuid = "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})";
+        if (StompCommand.SEND.equals(command)) {
+            return java.util.regex.Pattern.compile("^/app/chat\\.(?:send|typing)/" + uuid + "$")
+                    .matcher(destination);
+        }
+        return java.util.regex.Pattern.compile("^/user/queue/chat/" + uuid + "(?:/typing)?$")
+                .matcher(destination);
+    }
+
+    private boolean isChatDestination(String destination) {
+        return destination.startsWith("/topic/chat/")
+                || destination.startsWith("/queue/chat/")
+                || destination.startsWith("/user/queue/chat/")
+                || destination.startsWith("/app/chat.");
     }
 }

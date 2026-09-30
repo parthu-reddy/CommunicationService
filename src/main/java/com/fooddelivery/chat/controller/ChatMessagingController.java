@@ -3,8 +3,9 @@ package com.fooddelivery.chat.controller;
 import com.fooddelivery.chat.dto.ChatMessageDto;
 import com.fooddelivery.chat.dto.SendMessageRequest;
 import com.fooddelivery.chat.service.CallLogService;
+import com.fooddelivery.chat.service.ChatEventBroadcaster;
 import com.fooddelivery.chat.service.ChatMessageService;
-import com.fooddelivery.chat.service.ChatSessionService;
+import com.fooddelivery.chat.service.ChatSessionAccessService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -13,9 +14,6 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
-import java.util.List;
-import com.fooddelivery.common.client.RestaurantServiceClient;
-import com.fooddelivery.common.client.CustomerServiceClient;
 
 /**
  * STOMP messaging controller for real-time chat.
@@ -29,21 +27,28 @@ public class ChatMessagingController {
     private final SimpMessageSendingOperations messagingTemplate;
     private final ChatMessageService messageService;
     private final CallLogService callLogService;
-    private final ChatSessionService sessionService;
+    private final ChatSessionAccessService accessService;
+    private final ChatEventBroadcaster chatEventBroadcaster;
 
     /**
      * Handles chat messages sent via STOMP.
      * Client sends to: /app/chat.send/{sessionId}
-     * Broadcast to:     /topic/chat/{sessionId}
+     * Delivery:          /user/queue/chat/{sessionId}
      */
     @MessageMapping("/chat.send/{sessionId}")
     public void handleChatMessage(@DestinationVariable String sessionId, @Payload SendMessageRequest request, Principal principal) {
+        if (request == null) {
+            return;
+        }
         String senderId = principal != null ? principal.getName() : "anonymous";
+        boolean supportModerator = accessService.isSupportModerator(principal);
         int contentLength = request.getContent() == null ? 0 : request.getContent().length();
         log.info("STOMP message received from {} in session {} ({} chars)",
                 senderId, sessionId, contentLength);
+        final UUID sessionUuid;
         try {
-            if (!sessionService.isParticipant(UUID.fromString(sessionId), senderId)) {
+            sessionUuid = UUID.fromString(sessionId);
+            if (!accessService.canAccessSession(sessionUuid, principal)) {
                 log.warn("Rejected message from non-participant {} for session {}", senderId, sessionId);
                 return;
             }
@@ -59,65 +64,50 @@ public class ChatMessagingController {
             log.warn("Rejected overly large message ({} chars) from {} in session {}", request.getContent().length(), senderId, sessionId);
             return;
         }
-        // Security Validation: Clients can ONLY send TEXT messages directly over STOMP.
-        // IMAGE and AUDIO messages MUST go through their respective secure REST upload controllers
-        // to enforce file size, virus scanning (if any), and storage limits.
-        if (!"TEXT".equals(request.getMessageType()) &&
-            !"REFUND_QUOTE_REQUEST".equals(request.getMessageType()) &&
-            !"REFUND_QUOTE_RESPONSE".equals(request.getMessageType()) &&
-            !"REFUND_REQUEST".equals(request.getMessageType()) &&
-            !"REFUND_DECISION".equals(request.getMessageType())) {
-            log.warn("Rejected non-TEXT/REFUND message type '{}' from {} in session {}. Must use REST upload endpoints.", request.getMessageType(), senderId, sessionId);
+        // IMAGE and AUDIO messages go through secure upload controllers. Refund responses and
+        // decisions are system-only events produced by the backend; a browser may request only a
+        // quote or submit its own request.
+        if (!"TEXT".equals(request.getMessageType())
+                && !"REFUND_QUOTE_REQUEST".equals(request.getMessageType())
+                && !"REFUND_REQUEST".equals(request.getMessageType())) {
+            log.warn("Rejected unsupported message type '{}' from {} in session {}", request.getMessageType(), senderId, sessionId);
             return;
         }
-        // For refund-related messages, we MUST persist synchronously to guarantee OutboxEvent creation
-        if (!"TEXT".equals(request.getMessageType())) {
-            ChatMessageDto saved = messageService.saveMessage(UUID.fromString(sessionId), senderId, request.getContent(), request.getMessageType());
-            messagingTemplate.convertAndSend("/topic/chat/" + sessionId, saved);
+        boolean refundCommand = "REFUND_QUOTE_REQUEST".equals(request.getMessageType())
+                || "REFUND_REQUEST".equals(request.getMessageType());
+        if (refundCommand && !accessService.isCanonicalCustomer(sessionUuid, principal)) {
+            log.warn("Rejected refund command from non-customer {} in session {}", senderId, sessionId);
             return;
         }
 
-        // For standard text messages, broadcast immediately to reduce perceived latency
-        ChatMessageDto immediateDto = ChatMessageDto.builder()
-                .id(UUID.randomUUID())
-                .sessionId(UUID.fromString(sessionId))
-                .senderId(senderId)
-                .senderName(senderId) // Fallback, UI usually styles by senderId
-                .senderType("USER")
-                .messageType("TEXT")
-                .content(request.getContent())
-                .timestamp(java.time.Instant.now())
-                .build();
-
-        messagingTemplate.convertAndSend("/topic/chat/" + sessionId, immediateDto);
-
-        // Save to database asynchronously
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                messageService.saveMessage(UUID.fromString(sessionId), senderId, request.getContent(), request.getMessageType());
-            } catch (Exception e) {
-                log.error("Failed to save chat message asynchronously", e);
-            }
-        });
+        // Persist first. The recipient event contains the durable id, timestamp and canonical
+        // sender metadata, so reconnect/history cannot disagree with a synthetic optimistic event.
+        try {
+            ChatMessageDto saved = saveAuthorizedMessage(
+                    sessionUuid, senderId, request.getContent(), request.getMessageType(), supportModerator);
+            chatEventBroadcaster.broadcastMessage(sessionUuid, saved);
+        } catch (IllegalArgumentException exception) {
+            log.warn("Rejected invalid message from {} in session {}: {}", senderId, sessionId, exception.getMessage());
+        }
     }
 
     /**
      * Handles typing indicator events.
      * Client sends to: /app/chat.typing/{sessionId}
-     * Broadcast to:     /topic/chat/{sessionId}/typing
+     * Delivery:          /user/queue/chat/{sessionId}/typing
      * Not persisted — ephemeral UX indicator only.
      */
     @MessageMapping("/chat.typing/{sessionId}")
     public void handleTypingIndicator(@DestinationVariable String sessionId, Principal principal) {
         String userId = principal != null ? principal.getName() : "anonymous";
         try {
-            if (!sessionService.isParticipant(UUID.fromString(sessionId), userId)) {
+            if (!accessService.canAccessSession(UUID.fromString(sessionId), principal)) {
                 return; // Silently drop
             }
         } catch (IllegalArgumentException e) {
             return;
         }
-        messagingTemplate.convertAndSend("/topic/chat/" + sessionId + "/typing", Map.of("userId", userId, "typing", true));
+        chatEventBroadcaster.broadcastTyping(UUID.fromString(sessionId), Map.of("userId", userId, "typing", true));
     }
 
     /**
@@ -137,15 +127,11 @@ public class ChatMessagingController {
         try {
             sessionId = UUID.fromString(signal.getSessionId());
             
-            boolean senderAuthorized = sessionService.isParticipant(sessionId, signal.getSenderId()) || ownsParticipantRestaurant(sessionId, signal.getSenderId());
-            boolean targetAuthorized = sessionService.isParticipant(sessionId, targetUserId) || ownsParticipantRestaurant(sessionId, targetUserId);
-            
+            boolean senderAuthorized = accessService.canAccessSession(sessionId, principal);
+            boolean targetAuthorized = accessService.isCanonicalParticipant(sessionId, targetUserId);
             if (!senderAuthorized || !targetAuthorized) {
-                boolean isOrderAuthorized = checkOrderParticipants(sessionId, signal.getSenderId(), targetUserId);
-                if (!isOrderAuthorized) {
-                    log.warn("WebRTC signal rejected: Unauthorized session/order participants sender={}, target={}", signal.getSenderId(), targetUserId);
-                    return;
-                }
+                log.warn("WebRTC signal rejected: Unauthorized session/order participants sender={}, target={}", signal.getSenderId(), targetUserId);
+                return;
             }
         } catch (IllegalArgumentException e) {
             log.warn("WebRTC signal rejected: Invalid sessionId format {}", signal.getSessionId());
@@ -161,125 +147,29 @@ public class ChatMessagingController {
             callLogService.processHangup(sessionId, signal.getSenderId(), "USER_INITIATED");
         }
         
-        String finalTargetUserId = targetUserId;
-        if (targetUserId != null && targetUserId.length() == 36) {
-            log.info("Target user ID looks like a UUID ({}). Checking if it's a restaurant...", targetUserId);
-            String ownerId = getRestaurantOwner(targetUserId);
-            if (ownerId != null) {
-                log.info("Target user {} is a restaurant owned by {}. Re-routing signal to owner.", targetUserId, ownerId);
-                finalTargetUserId = ownerId;
-            } else {
-                log.info("Target user {} is NOT a restaurant (owner not found). Proceeding with target {}", targetUserId, targetUserId);
-            }
-        }
-        
-        log.info("Sending WebRTC signal to final target user ID: {} at destination /queue/webrtc", finalTargetUserId);
+        // The canonical roster already resolves a restaurant outlet to its owner identity.
+        log.info("Sending WebRTC signal to target user ID: {} at destination /queue/webrtc", targetUserId);
         // Routes securely to the specific target user's private queue
-        messagingTemplate.convertAndSendToUser(finalTargetUserId, "/queue/webrtc", signal);
-        log.info("WebRTC signal sent successfully to target user ID: {}", finalTargetUserId);
-    }
-    
-    private final java.util.concurrent.ConcurrentHashMap<String, String> restaurantOwnerCache = new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> nonRestaurantCache = new java.util.concurrent.ConcurrentHashMap<>();
-    private final RestaurantServiceClient restaurantServiceClient;
-    private final CustomerServiceClient customerServiceClient;
-
-    private boolean ownsParticipantRestaurant(UUID sessionId, String potentialOwnerId) {
-        com.fooddelivery.chat.dto.ChatSessionResponse session = sessionService.getSessionById(sessionId).orElse(null);
-        if (session == null) return false;
-        
-        for (com.fooddelivery.chat.dto.ParticipantDto p : session.getParticipants()) {
-            if ("RESTAURANT".equals(p.getEntityType()) || p.getUserId().length() == 36) {
-                String restaurantId = p.getUserId();
-                String actualOwner = getRestaurantOwner(restaurantId);
-                if (potentialOwnerId.equals(actualOwner)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        messagingTemplate.convertAndSendToUser(targetUserId, "/queue/webrtc", signal);
+        log.info("WebRTC signal sent successfully to target user ID: {}", targetUserId);
     }
 
-    private String getRestaurantOwner(String targetId) {
-        if (targetId == null || targetId.length() != 36) return null;
-        String cachedOwner = restaurantOwnerCache.get(targetId);
-        if (cachedOwner != null) {
-            log.info("Found cached owner {} for restaurant {}", cachedOwner, targetId);
-            return cachedOwner;
-        }
-        
-        if (nonRestaurantCache.containsKey(targetId)) {
-            log.info("Target {} is in nonRestaurantCache", targetId);
-            return null;
-        }
-        
-        try {
-            log.info("Querying restaurant-service for owner of outlet {}", targetId);
-            org.springframework.http.ResponseEntity<Map<String, Object>> response = restaurantServiceClient.getOutletOwner(targetId, "communication-service");
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String ownerId = (String) response.getBody().get("ownerId");
-                if (ownerId != null) {
-                    log.info("Successfully fetched owner {} for restaurant {}", ownerId, targetId);
-                    restaurantOwnerCache.put(targetId, ownerId);
-                    return ownerId;
-                }
-            } else {
-                log.warn("restaurant-service returned status {} for target {}", response.getStatusCode(), targetId);
-            }
-        } catch (Exception e) {
-            log.error("Error querying restaurant-service for target {}: {}", targetId, e.getMessage());
-            // Ignore exceptions like 404
-        }
-        nonRestaurantCache.put(targetId, true);
-        return null;
-    }
-
-    private boolean checkOrderParticipants(UUID orderId, String senderId, String targetUserId) {
-        try {
-            log.info("Session authorization failed. Checking if {} is a valid order ID for WebRTC call.", orderId);
-            org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(orderId.toString(), "communication-service");
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                List<String> participants = response.getBody();
-                
-                boolean senderInOrder = participants.contains(senderId);
-                if (!senderInOrder) {
-                    for (String pId : participants) {
-                        if (senderId.equals(getRestaurantOwner(pId))) {
-                            senderInOrder = true;
-                            break;
-                        }
-                    }
-                }
-                
-                boolean targetInOrder = participants.contains(targetUserId);
-                if (!targetInOrder) {
-                    for (String pId : participants) {
-                        if (targetUserId.equals(getRestaurantOwner(pId))) {
-                            targetInOrder = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (senderInOrder && targetInOrder) {
-                    log.info("WebRTC signal authorized via order ID: {}", orderId);
-                    return true;
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to check order participants for ID {}: {}", orderId, e.getMessage());
-        }
-        return false;
+    private ChatMessageDto saveAuthorizedMessage(UUID sessionId,
+                                                  String senderId,
+                                                  String content,
+                                                  String messageType,
+                                                  boolean supportModerator) {
+        return supportModerator
+                ? messageService.saveSupportModeratorMessage(sessionId, senderId, content, messageType)
+                : messageService.saveMessage(sessionId, senderId, content, messageType);
     }
 
     @java.lang.SuppressWarnings("all")
-    public ChatMessagingController(final SimpMessageSendingOperations messagingTemplate, final ChatMessageService messageService, final CallLogService callLogService, final ChatSessionService sessionService, final RestaurantServiceClient restaurantServiceClient, final CustomerServiceClient customerServiceClient) {
+    public ChatMessagingController(final SimpMessageSendingOperations messagingTemplate, final ChatMessageService messageService, final CallLogService callLogService, final ChatSessionAccessService accessService, final ChatEventBroadcaster chatEventBroadcaster) {
         this.messagingTemplate = messagingTemplate;
         this.messageService = messageService;
         this.callLogService = callLogService;
-        this.sessionService = sessionService;
-        this.restaurantServiceClient = restaurantServiceClient;
-        this.customerServiceClient = customerServiceClient;
+        this.accessService = accessService;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 }

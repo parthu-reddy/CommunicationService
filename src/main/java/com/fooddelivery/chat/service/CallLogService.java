@@ -3,7 +3,6 @@ package com.fooddelivery.chat.service;
 import com.fooddelivery.chat.entity.CallLog;
 import com.fooddelivery.chat.enums.CallStatus;
 import com.fooddelivery.chat.repository.CallLogRepository;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
@@ -18,7 +17,7 @@ public class CallLogService {
 
     private final CallLogRepository callLogRepository;
     private final ChatMessageService chatMessageService;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ChatEventBroadcaster chatEventBroadcaster;
 
     @Transactional
     public void processOffer(UUID sessionId, String callerId, String calleeId) {
@@ -55,19 +54,19 @@ public class CallLogService {
                 log.info("Call completed: session={}, duration={}s", sessionId, duration);
                 // Automatically dispatch system message
                 var msg = chatMessageService.saveMessage(sessionId, call.getCallerId(), "[SYSTEM_CALL_ENDED duration=" + duration + "]", "TEXT");
-                messagingTemplate.convertAndSend("/topic/chat/" + sessionId, msg);
+                chatEventBroadcaster.broadcastMessage(sessionId, msg);
             } else if (call.getStatus() == CallStatus.RINGING) {
                 // Determine if missed or declined based on who hung up
                 if (senderId.equals(call.getCallerId())) {
                     call.setStatus(CallStatus.MISSED);
                     log.info("Call missed: session={}", sessionId);
                     var msg = chatMessageService.saveMessage(sessionId, call.getCallerId(), "[SYSTEM_MISSED_CALL]", "TEXT");
-                    messagingTemplate.convertAndSend("/topic/chat/" + sessionId, msg);
+                    chatEventBroadcaster.broadcastMessage(sessionId, msg);
                 } else {
                     call.setStatus(CallStatus.DECLINED);
                     log.info("Call declined: session={}", sessionId);
                     var msg = chatMessageService.saveMessage(sessionId, call.getCallerId(), "[SYSTEM_MISSED_CALL]", "TEXT");
-                    messagingTemplate.convertAndSend("/topic/chat/" + sessionId, msg);
+                    chatEventBroadcaster.broadcastMessage(sessionId, msg);
                 }
                 call.setEndTime(Instant.now());
                 callLogRepository.save(call);
@@ -76,9 +75,9 @@ public class CallLogService {
     }
 
     @java.lang.SuppressWarnings("all")
-    public CallLogService(final CallLogRepository callLogRepository, final ChatMessageService chatMessageService, final SimpMessagingTemplate messagingTemplate) {
+    public CallLogService(final CallLogRepository callLogRepository, final ChatMessageService chatMessageService, final ChatEventBroadcaster chatEventBroadcaster) {
         this.callLogRepository = callLogRepository;
         this.chatMessageService = chatMessageService;
-        this.messagingTemplate = messagingTemplate;
+        this.chatEventBroadcaster = chatEventBroadcaster;
     }
 }

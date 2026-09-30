@@ -2,19 +2,17 @@ package com.fooddelivery.chat.controller;
 
 import com.fooddelivery.chat.dto.*;
 import com.fooddelivery.chat.service.ChatMessageService;
+import com.fooddelivery.chat.service.ChatSessionAccessService;
 import com.fooddelivery.chat.service.ChatSessionService;
-import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import java.util.Map;
 import java.util.UUID;
 import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
-import com.fooddelivery.common.client.RestaurantServiceClient;
-import com.fooddelivery.common.client.CustomerServiceClient;
 import com.fooddelivery.common.dto.ApiResponse;
+import com.fooddelivery.chat.service.OrderChatRosterService;
 
 @RestController
 @RequestMapping("/api/v1/chat")
@@ -24,8 +22,8 @@ public class ChatSessionController {
 
     private final ChatSessionService sessionService;
     private final ChatMessageService messageService;
-    private final RestaurantServiceClient restaurantServiceClient;
-    private final CustomerServiceClient customerServiceClient;
+    private final ChatSessionAccessService accessService;
+    private final OrderChatRosterService orderChatRosterService;
 
     /**
      * Create or retrieve a chat session for an order.
@@ -35,35 +33,28 @@ public class ChatSessionController {
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions")
     @Operation(summary = "Create or retrieve a chat session for an order")
-    public ResponseEntity<ApiResponse<ChatSessionResponse>> createOrGetSession(@Valid @RequestBody CreateSessionRequest request, Authentication authentication) {
+    public ResponseEntity<ApiResponse<ChatSessionResponse>> createOrGetSession(@RequestBody CreateSessionRequest request, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
-        // Authorization: Ensure the creator is actually part of the session they are trying to create
-        boolean isSelfParticipant = request.getParticipants().stream().anyMatch(p -> p.getUserId().equals(userId));
-        if (!isSelfParticipant && !isAdmin(authentication)) {
-            return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You must be a participant to create a session"));
+        if (request == null || request.getOrderId() == null || request.getOrderId().isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Order id is required"));
         }
-        // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
-        if (!isAdmin(authentication)) {
-            try {
-                List<String> authorizedParticipants = fetchAuthorizedOrderParticipants(request.getOrderId());
-                if (!isAuthorizedParticipantId(userId, authorizedParticipants)) {
-                    log.warn("Privilege escalation attempt! User {} tried to access order {}", userId, request.getOrderId());
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
-                }
-                List<String> unauthorizedRequestedParticipants = findUnauthorizedRequestedParticipants(request.getParticipants(), authorizedParticipants);
-                if (!unauthorizedRequestedParticipants.isEmpty()) {
-                    log.warn("Privilege escalation attempt! User {} tried to add non-order participants {} to order {}",
-                            userId, unauthorizedRequestedParticipants, request.getOrderId());
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: One or more participants are not authorized for this order"));
-                }
-            } catch (Exception e) {
-                log.error("Failed to validate order participants with customer-service for order {}", request.getOrderId(), e);
-                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
+        try {
+            // Legacy client-supplied fields are discarded. The order is the sole authority.
+            List<ParticipantDto> canonicalParticipants =
+                    orderChatRosterService.resolveCanonicalParticipants(request.getOrderId());
+            boolean callerIsOrderParticipant = userId != null && canonicalParticipants.stream()
+                    .anyMatch(participant -> userId.equals(participant.getUserId()));
+            if (!callerIsOrderParticipant && !accessService.isSupportModerator(authentication)) {
+                log.warn("Chat access denied for user {} on order {}", userId, request.getOrderId());
+                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
             }
+            ChatSessionResponse session = sessionService.createOrGetSession(request.getOrderId(), canonicalParticipants);
+            log.info("Create/get canonical chat session for order {} by user {}", request.getOrderId(), userId);
+            return ResponseEntity.ok(ApiResponse.success(session, "Chat session ready"));
+        } catch (RuntimeException exception) {
+            log.error("Unable to verify canonical chat roster for order {}", request.getOrderId(), exception);
+            return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
         }
-        log.info("Create/get chat session for order {} by user {}", request.getOrderId(), userId);
-        ChatSessionResponse session = sessionService.createOrGetSession(request);
-        return ResponseEntity.ok(ApiResponse.success(session, "Chat session ready"));
     }
 
     /**
@@ -75,14 +66,26 @@ public class ChatSessionController {
     @Operation(summary = "Get the chat session for a specific order")
     public ResponseEntity<ApiResponse<ChatSessionResponse>> getSessionByOrderId(@RequestParam String orderId, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
-        return 
-        // Authorization Check
-        sessionService.getSessionByOrderId(orderId).map(session -> {
-            if (userId == null || !sessionService.isParticipant(session.getSessionId(), userId)) {
-                return ResponseEntity.status(403).body(ApiResponse.<ChatSessionResponse>error("Access Denied: Not a participant of this chat session"));
+        if (orderId == null || orderId.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Order id is required"));
+        }
+        try {
+            // Check the order before looking for a session so an authenticated but unrelated
+            // caller cannot use this endpoint to discover whether another order has a chat.
+            if (userId == null || !accessService.canAccessOrder(orderId, authentication)) {
+                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
             }
-            return ResponseEntity.ok(ApiResponse.success(session, "Success"));
-        }).orElse(ResponseEntity.ok(ApiResponse.error("No chat session found for order: " + orderId)));
+            return sessionService.getSessionByOrderId(orderId).map(session -> {
+                if (!accessService.canAccessSession(session.getSessionId(), authentication)) {
+                    return ResponseEntity.status(403).body(ApiResponse.<ChatSessionResponse>error("Access Denied: Not a participant of this chat session"));
+                }
+                ChatSessionResponse reconciled = sessionService.getSessionById(session.getSessionId()).orElse(session);
+                return ResponseEntity.ok(ApiResponse.success(reconciled, "Success"));
+            }).orElse(ResponseEntity.ok(ApiResponse.error("No chat session found for order: " + orderId)));
+        } catch (RuntimeException exception) {
+            log.error("Unable to verify chat access for order {}", orderId, exception);
+            return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
+        }
     }
 
     /**
@@ -94,7 +97,7 @@ public class ChatSessionController {
     @Operation(summary = "Get paginated message history for a session")
     public ResponseEntity<ApiResponse<com.fooddelivery.common.dto.PageResponseDto<ChatMessageDto>>> getMessages(@PathVariable UUID sessionId, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
-        if (userId == null || !sessionService.isParticipant(sessionId, userId)) {
+        if (userId == null || !accessService.canAccessSession(sessionId, authentication)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         Page<ChatMessageDto> messages = messageService.getMessageHistory(sessionId, page, size);
@@ -102,98 +105,42 @@ public class ChatSessionController {
     }
 
     /**
-     * Add a participant to an existing session (e.g., when a rider is assigned).
+     * Reconcile an existing order session with its authoritative roster.
      */
     /** Chat is between identified participants; the controller resolves the caller from the security context. */
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/participants")
-    @Operation(summary = "Add a participant to an existing session")
-    public ResponseEntity<ApiResponse<ChatSessionResponse>> addParticipant(@PathVariable UUID sessionId, @Valid @RequestBody ParticipantDto participantDto, Authentication authentication) {
+    @Operation(summary = "Synchronize an existing order session with its authoritative roster")
+    public ResponseEntity<ApiResponse<ChatSessionResponse>> addParticipant(@PathVariable UUID sessionId, Authentication authentication) {
         String userId = authentication != null ? authentication.getName() : null;
-        // Ensure the person adding a participant is already in the chat, 
-        // OR the person being added is themselves (e.g. a rider joining).
-        boolean isAlreadyParticipant = sessionService.isParticipant(sessionId, userId);
-        boolean isAddingSelf = participantDto.getUserId().equals(userId);
-        if (!isAlreadyParticipant && !isAddingSelf && !isAdmin(authentication)) {
-            return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Cannot add participant to this session"));
-        }
-        // Additional Security: Synchronous validation with CustomerApplication to prevent Horizontal Privilege Escalation
-        if (!isAdmin(authentication)) {
-            try {
-                // We need the orderId (referenceId) from the session
-                ChatSessionResponse sessionOpt = sessionService.getSessionById(sessionId).orElse(null);
-                if (sessionOpt == null) {
-                    return ResponseEntity.status(404).body(ApiResponse.error("Session not found"));
-                }
-                String orderId = sessionOpt.getReferenceId();
-                List<String> authorizedParticipants = fetchAuthorizedOrderParticipants(orderId);
-                if (!isAlreadyParticipant && !isAuthorizedParticipantId(userId, authorizedParticipants)) {
-                    log.warn("Privilege escalation attempt! User {} tried to join session {} for order {}", userId, sessionId, orderId);
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized to join this chat session"));
-                }
-                if (!isAuthorizedParticipantId(participantDto.getUserId(), authorizedParticipants)) {
-                    log.warn("Privilege escalation attempt! User {} tried to add non-order participant {} to session {} for order {}",
-                            userId, participantDto.getUserId(), sessionId, orderId);
-                    return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Participant is not authorized for this order"));
-                }
-            } catch (Exception e) {
-                log.error("Failed to validate participant addition with customer-service for session {}", sessionId, e);
-                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
-            }
-        }
-        log.info("Adding participant {} to session {} by user {}", participantDto.getUserId(), sessionId, userId);
-        ChatSessionResponse session = sessionService.addParticipant(sessionId, participantDto);
-        return ResponseEntity.ok(ApiResponse.success(session, "Participant added"));
-    }
-
-    private boolean isAdmin(Authentication authentication) {
-        if (authentication == null) return false;
-        return authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_SYSTEM"));
-    }
-
-    private List<String> fetchAuthorizedOrderParticipants(String orderId) {
-        org.springframework.http.ResponseEntity<List<String>> response = customerServiceClient.getOrderParticipants(orderId, "communication-service");
-        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-            return response.getBody();
-        }
-        throw new IllegalStateException("Unable to load order participants");
-    }
-
-    private List<String> findUnauthorizedRequestedParticipants(List<ParticipantDto> requestedParticipants, List<String> authorizedOrderParticipants) {
-        return requestedParticipants.stream()
-                .map(ParticipantDto::getUserId)
-                .filter(participantId -> !isAuthorizedParticipantId(participantId, authorizedOrderParticipants))
-                .toList();
-    }
-
-    private boolean isAuthorizedParticipantId(String participantId, List<String> authorizedOrderParticipants) {
-        if (participantId == null || participantId.isBlank()) {
-            return false;
-        }
-        if (authorizedOrderParticipants.contains(participantId)) {
-            return true;
-        }
-        return ownsAuthorizedRestaurantOutlet(participantId, authorizedOrderParticipants);
-    }
-
-    private boolean ownsAuthorizedRestaurantOutlet(String ownerId, List<String> authorizedOrderParticipants) {
         try {
-            List<String> ownedOutlets = restaurantServiceClient.getOwnerOutlets(ownerId, "communication-service");
-            if (ownedOutlets == null || ownedOutlets.isEmpty()) {
-                return false;
+            // Authorize before loading the session so callers cannot distinguish an
+            // unknown session ID from one they are not allowed to access.
+            if (userId == null || !accessService.canAccessSession(sessionId, authentication)) {
+                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Not authorized for this chat session"));
             }
-            return ownedOutlets.stream().anyMatch(authorizedOrderParticipants::contains);
-        } catch (Exception e) {
-            log.debug("Participant {} is not a restaurant owner for this order, or restaurant-service could not verify ownership", ownerId, e);
-            return false;
+            ChatSessionResponse existing = sessionService.getSessionById(sessionId).orElse(null);
+            // A session can be deleted after the authorization lookup. Preserve the
+            // same response so that race cannot reintroduce an existence disclosure.
+            if (existing == null) {
+                return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Not authorized for this chat session"));
+            }
+            List<ParticipantDto> canonicalParticipants =
+                    orderChatRosterService.resolveCanonicalParticipants(existing.getReferenceId());
+            ChatSessionResponse session = sessionService.synchronizeParticipants(sessionId, canonicalParticipants);
+            log.info("Synchronized canonical chat roster for session {} by user {}", sessionId, userId);
+            return ResponseEntity.ok(ApiResponse.success(session, "Chat participants synchronized"));
+        } catch (RuntimeException exception) {
+            log.error("Unable to synchronize canonical chat roster for session {}", sessionId, exception);
+            return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
         }
     }
 
     @java.lang.SuppressWarnings("all")
-    public ChatSessionController(final ChatSessionService sessionService, final ChatMessageService messageService, final RestaurantServiceClient restaurantServiceClient, final CustomerServiceClient customerServiceClient) {
+    public ChatSessionController(final ChatSessionService sessionService, final ChatMessageService messageService, final ChatSessionAccessService accessService, final OrderChatRosterService orderChatRosterService) {
         this.sessionService = sessionService;
         this.messageService = messageService;
-        this.restaurantServiceClient = restaurantServiceClient;
-        this.customerServiceClient = customerServiceClient;
+        this.accessService = accessService;
+        this.orderChatRosterService = orderChatRosterService;
     }
 }

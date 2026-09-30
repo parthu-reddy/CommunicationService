@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fooddelivery.chat.controller.ChatSessionController;
 import com.fooddelivery.chat.controller.TurnCredentialController;
 import com.fooddelivery.chat.dto.CreateSessionRequest;
-import com.fooddelivery.chat.dto.ParticipantDto;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.Authentication;
@@ -80,11 +79,10 @@ public class ChatMcpService {
         }
     }
 
-    @Tool(description = "Add a participant to a chat session, as the authenticated caller. Provide sessionId and a JSON string of ParticipantDto (userId, role, name). The userId in that DTO is the participant being added, not the caller.")
-    public String addParticipant(String sessionId, String requestJson) {
+    @Tool(description = "Synchronize the canonical participant roster for a chat session, as the authenticated caller. Provide sessionId. The order is the only participant authority.")
+    public String synchronizeParticipants(String sessionId) {
         try {
-            ParticipantDto req = objectMapper.readValue(requestJson, ParticipantDto.class);
-            return objectMapper.writeValueAsString(chatSessionController.addParticipant(UUID.fromString(sessionId), req, requireCaller()).getBody());
+            return objectMapper.writeValueAsString(chatSessionController.addParticipant(UUID.fromString(sessionId), requireCaller()).getBody());
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }

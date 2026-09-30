@@ -54,6 +54,12 @@ public class OpenApiGenerationTest {
     
     @MockBean
     private com.fooddelivery.chat.service.ChatMessageService chatMessageService;
+
+    @MockBean
+    private com.fooddelivery.chat.service.ChatSessionAccessService chatSessionAccessService;
+
+    @MockBean
+    private com.fooddelivery.chat.service.OrderChatRosterService orderChatRosterService;
     
     @MockBean
     private com.fooddelivery.common.service.CloudflareR2Service cloudflareR2Service;

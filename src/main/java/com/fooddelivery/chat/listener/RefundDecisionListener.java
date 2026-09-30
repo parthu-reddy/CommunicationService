@@ -1,6 +1,7 @@
 package com.fooddelivery.chat.listener;
 
 import com.fooddelivery.chat.dto.ChatMessageDto;
+import com.fooddelivery.chat.service.ChatEventBroadcaster;
 import com.fooddelivery.chat.service.ChatMessageService;
 import com.fooddelivery.common.event.OutboxEvent;
 import com.fooddelivery.common.entity.IdempotencyKey;
@@ -8,7 +9,6 @@ import com.fooddelivery.common.repository.IIdempotencyKeyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -18,13 +18,13 @@ import java.util.UUID;
 @lombok.extern.slf4j.Slf4j
 public class RefundDecisionListener {
 
-    private final SimpMessageSendingOperations messagingTemplate;
+    private final ChatEventBroadcaster chatEventBroadcaster;
     private final ChatMessageService messageService;
     private final IIdempotencyKeyRepository idempotencyKeyRepository;
     private final TransactionTemplate transactionTemplate;
 
-    public RefundDecisionListener(SimpMessageSendingOperations messagingTemplate, ChatMessageService messageService, IIdempotencyKeyRepository idempotencyKeyRepository, TransactionTemplate transactionTemplate) {
-        this.messagingTemplate = messagingTemplate;
+    public RefundDecisionListener(ChatEventBroadcaster chatEventBroadcaster, ChatMessageService messageService, IIdempotencyKeyRepository idempotencyKeyRepository, TransactionTemplate transactionTemplate) {
+        this.chatEventBroadcaster = chatEventBroadcaster;
         this.messageService = messageService;
         this.idempotencyKeyRepository = idempotencyKeyRepository;
         this.transactionTemplate = transactionTemplate;
@@ -59,7 +59,7 @@ public class RefundDecisionListener {
                     
                     // Save and broadcast
                     ChatMessageDto saved = messageService.saveMessage(sessionId, senderId, content, messageType);
-                    messagingTemplate.convertAndSend("/topic/chat/" + sessionId, saved);
+                    chatEventBroadcaster.broadcastMessage(sessionId, saved);
                     log.info("Processed refund decision for session {}: {}", sessionId, messageType);
                     return null;
                 });
