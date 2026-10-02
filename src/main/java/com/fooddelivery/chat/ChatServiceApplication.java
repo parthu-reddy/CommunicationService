@@ -14,7 +14,13 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 )
 @ComponentScan(
     basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"},
-    excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {com.fooddelivery.common.security.CommonSecurityConfig.class})
+    // Keep Boot's exclusions when replacing its default component scan. Otherwise conditional
+    // auto-configurations are discovered before their dependencies and skipped permanently.
+    excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = org.springframework.boot.context.TypeExcludeFilter.class),
+        @ComponentScan.Filter(type = FilterType.CUSTOM, classes = org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter.class),
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = com.fooddelivery.common.security.CommonSecurityConfig.class)
+    }
 )
 
 @org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {"com.fooddelivery.chat", "com.fooddelivery.common"})

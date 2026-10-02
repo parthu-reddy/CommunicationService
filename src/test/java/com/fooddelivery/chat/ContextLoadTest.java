@@ -54,5 +54,7 @@ class ContextLoadTest {
     @Test
     void contextLoads() {
         assertTrue(context.getBeanDefinitionCount() > 0, "an empty context is not a started one");
+        assertTrue(context.getBeansOfType(com.fooddelivery.common.outbox.service.OutboxProcessor.class).size() == 1,
+                "a database-backed chat service must register its real outbox publisher");
     }
 }
