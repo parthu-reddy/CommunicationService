@@ -31,6 +31,20 @@ public class RefundDecisionListener {
     }
 
     @KafkaListener(topics = "chat-events", groupId = "chat-service-refund-group-refunddecisionlistener")
+    public void handleRefundRecord(String payload, @org.springframework.messaging.handler.annotation.Headers java.util.Map<String, Object> headers) {
+        String type = com.fooddelivery.common.util.KafkaHeaderUtils.extractHeaderValue(headers, "eventType");
+        if (!"CHAT_REFUND_QUOTE_RESPONSE".equals(type) && !"CHAT_REFUND_DECISION".equals(type)
+                && !"CHAT_REFUND_ERROR".equals(type)) return;
+        String id = com.fooddelivery.common.util.KafkaHeaderUtils.extractHeaderValue(headers, "eventId");
+        String sessionId = com.fooddelivery.common.util.KafkaHeaderUtils.extractHeaderValue(headers,
+                org.springframework.kafka.support.KafkaHeaders.RECEIVED_KEY);
+        if (id == null || id.isBlank() || sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("Chat refund response requires eventId and session key");
+        }
+        UUID.fromString(sessionId);
+        handleRefundDecision(OutboxEvent.builder().id(id).type(type).aggregateId(sessionId).payload(payload).build(), headers);
+    }
+
     public void handleRefundDecision(OutboxEvent event, @org.springframework.messaging.handler.annotation.Headers java.util.Map<String, Object> headers) {
         try {
             if ("CHAT_REFUND_QUOTE_RESPONSE".equals(event.getType()) || "CHAT_REFUND_DECISION".equals(event.getType()) || "CHAT_REFUND_ERROR".equals(event.getType())) {
@@ -65,7 +79,9 @@ public class RefundDecisionListener {
                 });
             }
         } catch (Exception e) {
-            log.error("Failed to process refund decision event: {}", event, e);
+            // Let the Kafka error handler retry or retain this event in the DLT.
+            // Returning normally would acknowledge a response that was never stored.
+            throw new IllegalStateException("Failed to process refund response " + event.getId(), e);
         }
     }
 }
