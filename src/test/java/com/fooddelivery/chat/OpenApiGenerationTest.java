@@ -73,6 +73,8 @@ public class OpenApiGenerationTest {
     @MockBean
     private org.springframework.messaging.simp.SimpMessageSendingOperations messagingTemplate;
     @MockBean
+    private com.fooddelivery.chat.service.ChatEventBroadcaster chatEventBroadcaster;
+    @MockBean
     private com.fooddelivery.common.client.RestaurantServiceClient restaurantServiceClient;
     @MockBean
     private com.fooddelivery.common.client.CustomerServiceClient customerServiceClient;
