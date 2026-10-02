@@ -89,7 +89,8 @@ public class ChatSessionController {
     }
 
     /**
-     * Get paginated message history for a session.
+     * Get paginated message history for a session. Page zero contains the newest messages;
+     * older windows are available on subsequent pages.
      */
     /** Chat is between identified participants; the controller resolves the caller from the security context. */
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")

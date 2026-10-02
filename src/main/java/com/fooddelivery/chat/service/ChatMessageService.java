@@ -92,13 +92,14 @@ public class ChatMessageService {
     }
 
     /**
-     * Get paginated message history for a session, enriched with sender names.
+     * Get newest-first paginated history for a session, enriched with sender names.
+     * Page zero is the latest window; clients display that window in chronological order.
      */
     @Transactional(readOnly = true)
     public Page<ChatMessageDto> getMessageHistory(UUID sessionId, int page, int size) {
         // Build a lookup of userId -> displayName from participants
         Map<String, SessionParticipant> participantMap = participantRepository.findByChatSessionId(sessionId).stream().collect(Collectors.toMap(SessionParticipant::getUserId, p -> p, (a, b) -> a));
-        return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId, PageRequest.of(page, size)).map(msg -> {
+        return messageRepository.findBySessionIdOrderByCreatedAtDescIdDesc(sessionId, PageRequest.of(page, size)).map(msg -> {
             SessionParticipant sender = participantMap.get(msg.getSenderId());
             SenderIdentity senderIdentity = new SenderIdentity(
                     msg.getSenderName() != null ? msg.getSenderName() : (sender != null ? sender.getDisplayName() : msg.getSenderId()),
