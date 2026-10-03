@@ -18,6 +18,8 @@ public class ChatMessage {
     private UUID sessionId;
     @Column(name = "sender_id", nullable = false)
     private String senderId;
+    @Column(name = "sender_entity_id", nullable = false)
+    private String senderEntityId;
     @Column(name = "sender_name")
     private String senderName;
     @Column(name = "sender_type")

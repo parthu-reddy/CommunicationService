@@ -45,15 +45,14 @@ public class ChatSessionController {
             // Legacy client-supplied fields are discarded. The order is the sole authority.
             List<ParticipantDto> canonicalParticipants =
                     orderChatRosterService.resolveCanonicalParticipants(request.getOrderId());
-            boolean callerIsOrderParticipant = userId != null && canonicalParticipants.stream()
-                    .anyMatch(participant -> userId.equals(participant.getUserId()));
+            boolean callerIsOrderParticipant = userId != null && accessService.canAccessParticipants(canonicalParticipants, authentication);
             if (!callerIsOrderParticipant && !accessService.isSupportModerator(authentication)) {
                 log.warn("Chat access denied for user {} on order {}", userId, request.getOrderId());
                 return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: You are not authorized for this order"));
             }
             ChatSessionResponse session = sessionService.createOrGetSession(request.getOrderId(), canonicalParticipants);
             log.info("Create/get canonical chat session for order {} by user {}", request.getOrderId(), userId);
-            return ResponseEntity.ok(ApiResponse.success(session, "Chat session ready"));
+            return ResponseEntity.ok(ApiResponse.success(accessService.withCallContacts(session), "Chat session ready"));
         } catch (RuntimeException exception) {
             log.error("Unable to verify canonical chat roster for order {}", request.getOrderId(), exception);
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));
@@ -83,7 +82,7 @@ public class ChatSessionController {
                     return ResponseEntity.status(403).body(ApiResponse.<ChatSessionResponse>error("Access Denied: Not a participant of this chat session"));
                 }
                 ChatSessionResponse reconciled = sessionService.getSessionById(session.getSessionId()).orElse(session);
-                return ResponseEntity.ok(ApiResponse.success(reconciled, "Success"));
+                return ResponseEntity.ok(ApiResponse.success(accessService.withCallContacts(reconciled), "Success"));
             }).orElse(ResponseEntity.ok(ApiResponse.error("No chat session found for order: " + orderId)));
         } catch (RuntimeException exception) {
             log.error("Unable to verify chat access for order {}", orderId, exception);
@@ -139,7 +138,7 @@ public class ChatSessionController {
                     orderChatRosterService.resolveCanonicalParticipants(existing.getReferenceId());
             ChatSessionResponse session = sessionService.synchronizeParticipants(sessionId, canonicalParticipants);
             log.info("Synchronized canonical chat roster for session {} by user {}", sessionId, userId);
-            return ResponseEntity.ok(ApiResponse.success(session, "Chat participants synchronized"));
+            return ResponseEntity.ok(ApiResponse.success(accessService.withCallContacts(session), "Chat participants synchronized"));
         } catch (RuntimeException exception) {
             log.error("Unable to synchronize canonical chat roster for session {}", sessionId, exception);
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Unable to verify permissions"));

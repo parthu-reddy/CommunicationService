@@ -38,14 +38,14 @@ class ChatMessagingControllerTest {
         ChatMessageDto saved = ChatMessageDto.builder().id(UUID.randomUUID()).sessionId(sessionId).content("Hello").build();
         when(accessService.isSupportModerator(customer)).thenReturn(false);
         when(accessService.canAccessSession(sessionId, customer)).thenReturn(true);
-        when(messageService.saveMessage(sessionId, "customer-1", "Hello", "TEXT")).thenReturn(saved);
+        when(messageService.saveMessage(sessionId, "customer-1", "Hello", "TEXT", null)).thenReturn(saved);
         ChatMessagingController controller = controller();
 
         controller.handleChatMessage(sessionId.toString(), SendMessageRequest.builder()
                 .content("Hello").messageType("TEXT").build(), customer);
 
         InOrder inOrder = inOrder(messageService, chatEventBroadcaster);
-        inOrder.verify(messageService).saveMessage(sessionId, "customer-1", "Hello", "TEXT");
+        inOrder.verify(messageService).saveMessage(sessionId, "customer-1", "Hello", "TEXT", null);
         inOrder.verify(chatEventBroadcaster).broadcastMessage(sessionId, saved);
     }
 
@@ -55,7 +55,7 @@ class ChatMessagingControllerTest {
         UsernamePasswordAuthenticationToken customer = new UsernamePasswordAuthenticationToken("customer-1", null);
         when(accessService.isSupportModerator(customer)).thenReturn(false);
         when(accessService.canAccessSession(sessionId, customer)).thenReturn(true);
-        when(messageService.saveMessage(sessionId, "customer-1", "Hello", "TEXT"))
+        when(messageService.saveMessage(sessionId, "customer-1", "Hello", "TEXT", null))
                 .thenThrow(new IllegalArgumentException("database rejected message"));
 
         controller().handleChatMessage(sessionId.toString(), SendMessageRequest.builder()
@@ -75,7 +75,7 @@ class ChatMessagingControllerTest {
         controller().handleChatMessage(sessionId.toString(), SendMessageRequest.builder()
                 .content("{\"refundType\":\"FULL\"}").messageType("REFUND_REQUEST").build(), restaurant);
 
-        verify(messageService, never()).saveMessage(eq(sessionId), eq("restaurant-1"), org.mockito.ArgumentMatchers.any(), eq("REFUND_REQUEST"));
+        verify(messageService, never()).saveMessage(eq(sessionId), eq("restaurant-1"), org.mockito.ArgumentMatchers.any(), eq("REFUND_REQUEST"), org.mockito.ArgumentMatchers.isNull());
         verify(chatEventBroadcaster, never()).broadcastMessage(eq(sessionId), org.mockito.ArgumentMatchers.any());
     }
 
@@ -89,7 +89,7 @@ class ChatMessagingControllerTest {
         controller().handleChatMessage(sessionId.toString(), SendMessageRequest.builder()
                 .content("{\"status\":\"APPROVED\"}").messageType("REFUND_DECISION").build(), customer);
 
-        verify(messageService, never()).saveMessage(eq(sessionId), eq("customer-1"), org.mockito.ArgumentMatchers.any(), eq("REFUND_DECISION"));
+        verify(messageService, never()).saveMessage(eq(sessionId), eq("customer-1"), org.mockito.ArgumentMatchers.any(), eq("REFUND_DECISION"), org.mockito.ArgumentMatchers.isNull());
         verify(chatEventBroadcaster, never()).broadcastMessage(eq(sessionId), org.mockito.ArgumentMatchers.any());
     }
 
@@ -101,7 +101,7 @@ class ChatMessagingControllerTest {
         when(accessService.isSupportModerator(customer)).thenReturn(false);
         when(accessService.canAccessSession(sessionId, customer)).thenReturn(true);
         when(accessService.isCanonicalCustomer(sessionId, customer)).thenReturn(true);
-        when(messageService.saveMessage(sessionId, "customer-1", "{\"refundType\":\"FULL\"}", "REFUND_REQUEST"))
+        when(messageService.saveMessage(sessionId, "customer-1", "{\"refundType\":\"FULL\"}", "REFUND_REQUEST", null))
                 .thenReturn(saved);
 
         controller().handleChatMessage(sessionId.toString(), SendMessageRequest.builder()

@@ -22,6 +22,9 @@ public class ChatSessionAccessService {
 
     private final ChatSessionService sessionService;
     private final OrderChatRosterService orderChatRosterService;
+    private final com.fooddelivery.common.client.RestaurantServiceClient restaurantServiceClient;
+    private final com.fooddelivery.common.client.OrganisationServiceClient organisationServiceClient;
+    private final com.fooddelivery.common.security.organisation.OrganisationAccessPolicy organisationAccessPolicy;
 
     public ChatSessionResponse synchronizeOrderSession(String orderId) {
         List<ParticipantDto> canonicalParticipants = orderChatRosterService.resolveCanonicalParticipants(orderId);
@@ -36,7 +39,7 @@ public class ChatSessionAccessService {
             return resolvedSession(sessionId)
                     .map(resolved -> {
                         boolean authorized = isSupportModerator(principal)
-                                || containsUser(resolved.canonicalParticipants(), principal.getName());
+                                || participantForUser(resolved.canonicalParticipants(), principal.getName()).isPresent();
                         if (authorized) {
                             reconcileIfStale(resolved);
                         }
@@ -55,8 +58,7 @@ public class ChatSessionAccessService {
         if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
             return false;
         }
-        return orderChatRosterService.resolveCanonicalParticipants(orderId).stream()
-                .anyMatch(participant -> principal.getName().equals(participant.getUserId()));
+        return participantForUser(orderChatRosterService.resolveCanonicalParticipants(orderId), principal.getName()).isPresent();
     }
 
     public boolean isCanonicalParticipant(UUID sessionId, String userId) {
@@ -64,21 +66,59 @@ public class ChatSessionAccessService {
             return false;
         }
         return resolvedSession(sessionId)
-                .map(resolved -> containsUser(resolved.canonicalParticipants(), userId))
+                .map(resolved -> participantForUser(resolved.canonicalParticipants(), userId).isPresent())
                 .orElse(false);
     }
 
-    /** Returns the currently synchronized canonical roster for recipient-specific event delivery. */
+    /** Fresh server-side membership controls per-user delivery; removed staff never remain durable recipients. */
     public Set<String> canonicalParticipantIds(UUID sessionId) {
-        return resolvedSession(sessionId)
-                .map(resolved -> resolved.canonicalParticipants() == null
-                        ? Set.<String>of()
-                        : resolved.canonicalParticipants().stream()
-                                .map(ParticipantDto::getUserId)
-                                .filter(userId -> userId != null && !userId.isBlank())
-                                .collect(Collectors.toCollection(LinkedHashSet::new)))
-                .map(Set::copyOf)
-                .orElseGet(Set::of);
+        return resolvedSession(sessionId).map(resolved -> {
+            Set<String> recipients = new LinkedHashSet<>();
+            for (ParticipantDto participant : resolved.canonicalParticipants()) {
+                if ("RESTAURANT".equals(participant.getEntityType())) {
+                    try {
+                        var outlet = restaurantServiceClient.getOutletOrganisation(UUID.fromString(participant.getEntityId()));
+                        if (outlet != null && participant.getEntityId().equals(outlet.outletId().toString()) && outlet.organisationId() != null) {
+                            var members = organisationServiceClient.getMembers(outlet.organisationId(),
+                                    com.fooddelivery.common.enums.OrganisationPermission.ORDERS_OPERATE);
+                            if (members != null) { members.stream().filter(Objects::nonNull).map(UUID::toString).forEach(recipients::add); }
+                        }
+                    } catch (RuntimeException unavailable) { /* Fail closed for this outlet's recipients. */ }
+                } else if (participant.getUserId() != null) { recipients.add(participant.getUserId()); }
+            }
+            return Set.copyOf(recipients);
+        }).orElseGet(Set::of);
+    }
+
+    /** Resolve call contacts after order authorization; provider outages leave calls unavailable. */
+    public ChatSessionResponse withCallContacts(ChatSessionResponse session) {
+        if (session.getParticipants() == null) { return session; }
+        for (ParticipantDto participant : session.getParticipants()) {
+            if (!"RESTAURANT".equals(participant.getEntityType())) {
+                participant.setContactUserIds(participant.getUserId() == null ? List.of() : List.of(participant.getUserId()));
+                continue;
+            }
+            try {
+                var outlet = restaurantServiceClient.getOutletOrganisation(UUID.fromString(participant.getEntityId()));
+                if (outlet == null || !participant.getEntityId().equals(outlet.outletId().toString()) || outlet.organisationId() == null) {
+                    participant.setContactUserIds(List.of()); continue;
+                }
+                var members = organisationServiceClient.getMembers(outlet.organisationId(), com.fooddelivery.common.enums.OrganisationPermission.ORDERS_OPERATE);
+                participant.setContactUserIds(members == null ? List.of() : members.stream().filter(Objects::nonNull).map(UUID::toString).distinct().sorted().toList());
+            } catch (RuntimeException unavailable) { participant.setContactUserIds(List.of()); }
+        }
+        return session;
+    }
+
+    public Optional<ParticipantDto> participantForUser(UUID sessionId, String userId) {
+        return participantForUser(sessionId, userId, null);
+    }
+    public Optional<ParticipantDto> participantForUser(UUID sessionId, String userId, String entityType) {
+        return resolvedSession(sessionId).flatMap(resolved -> participantForUser(resolved.canonicalParticipants(), userId, entityType));
+    }
+
+    public boolean canAccessParticipants(List<ParticipantDto> participants, Principal principal) {
+        return principal != null && (isSupportModerator(principal) || participantForUser(participants, principal.getName()).isPresent());
     }
 
     /** Refund requests are a customer-only action, even though other participants can use chat. */
@@ -98,8 +138,7 @@ public class ChatSessionAccessService {
             return false;
         }
         return authentication.getAuthorities().stream().anyMatch(authority ->
-                "ROLE_SUPPORT_MODERATOR".equals(authority.getAuthority())
-                        || "ROLE_ADMIN".equals(authority.getAuthority()));
+                "ROLE_ADMIN".equals(authority.getAuthority()));
     }
 
     private Optional<ResolvedSession> resolvedSession(UUID sessionId) {
@@ -112,9 +151,26 @@ public class ChatSessionAccessService {
         }
     }
 
-    private boolean containsUser(List<ParticipantDto> participants, String userId) {
-        return participants != null && participants.stream().anyMatch(participant ->
-                participant != null && userId.equals(participant.getUserId()));
+    private Optional<ParticipantDto> participantForUser(List<ParticipantDto> participants, String userId) {
+        return participantForUser(participants,userId,null);
+    }
+    private Optional<ParticipantDto> participantForUser(List<ParticipantDto> participants, String userId, String entityType) {
+        if (participants == null || userId == null || userId.isBlank()) { return Optional.empty(); }
+        // An actor who is both customer and staff speaks for themselves by default.
+        var person = participants.stream().filter(Objects::nonNull)
+                .filter(p -> !"RESTAURANT".equals(p.getEntityType()) && userId.equals(p.getUserId())
+                    && (entityType == null || entityType.equals(p.getEntityType()))).findFirst();
+        if (person.isPresent()) { return person; }
+        if (entityType != null && !"RESTAURANT".equals(entityType)) { return Optional.empty(); }
+        try {
+            UUID actor = UUID.fromString(userId);
+            return participants.stream().filter(Objects::nonNull).filter(p -> "RESTAURANT".equals(p.getEntityType()))
+                .filter(p -> {
+                    var outlet = restaurantServiceClient.getOutletOrganisation(UUID.fromString(p.getEntityId()));
+                    return outlet != null && p.getEntityId().equals(outlet.outletId().toString()) && outlet.organisationId() != null
+                        && organisationAccessPolicy.canUser(actor, outlet.organisationId(), com.fooddelivery.common.enums.OrganisationPermission.ORDERS_OPERATE);
+                }).findFirst();
+        } catch (RuntimeException unavailable) { return Optional.empty(); }
     }
 
     private void reconcileIfStale(ResolvedSession resolved) {
@@ -134,7 +190,7 @@ public class ChatSessionAccessService {
         return participants.stream()
                 .filter(Objects::nonNull)
                 .map(participant -> new RosterMember(
-                        participant.getUserId(), participant.getEntityType(), participant.getDisplayName()))
+                        participant.getUserId(), participant.getEntityId(), participant.getEntityType(), participant.getDisplayName()))
                 .collect(Collectors.toSet());
     }
 
@@ -144,6 +200,6 @@ public class ChatSessionAccessService {
             List<ParticipantDto> canonicalParticipants) {
     }
 
-    private record RosterMember(String userId, String entityType, String displayName) {
+    private record RosterMember(String userId, String entityId, String entityType, String displayName) {
     }
 }

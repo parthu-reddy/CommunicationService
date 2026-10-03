@@ -33,14 +33,15 @@ class ChatHistoryWindowTest {
     @Autowired ChatMessageRepository messages;
     @Autowired ChatMessageService service;
     @MockBean OutboxEventRepository outbox;
+    @MockBean ChatSessionAccessService access;
 
     @Test void newestWindowAndOlderWindowContainOnlyTheSelectedSessionAndUseStableTies() {
         UUID session=UUID.randomUUID(),other=UUID.randomUUID();
         Instant base=Instant.parse("2026-01-01T00:00:00Z");
-        for(int i=0;i<61;i++)messages.save(ChatMessage.builder().sessionId(session).senderId("customer")
+        for(int i=0;i<61;i++)messages.save(ChatMessage.builder().sessionId(session).senderId("customer").senderEntityId("customer")
                 .senderName("Customer").senderType("CUSTOMER").messageType("TEXT").content("message-"+i)
                 .createdAt(base.plusSeconds(i)).build());
-        messages.saveAndFlush(ChatMessage.builder().sessionId(other).senderId("other-user")
+        messages.saveAndFlush(ChatMessage.builder().sessionId(other).senderId("other-user").senderEntityId("other-user")
                 .messageType("TEXT").content("private-other-session").createdAt(base.plusSeconds(500)).build());
         var latest=service.getMessageHistory(session,0,50);
         var older=service.getMessageHistory(session,1,50);
@@ -55,7 +56,7 @@ class ChatHistoryWindowTest {
         // Persist same-time messages to prove a stable page boundary rather than relying on
         // unspecified database ordering for timestamp ties.
         UUID tieSession=UUID.randomUUID();
-        for(int i=0;i<3;i++)messages.save(ChatMessage.builder().sessionId(tieSession).senderId("customer")
+        for(int i=0;i<3;i++)messages.save(ChatMessage.builder().sessionId(tieSession).senderId("customer").senderEntityId("customer")
                 .messageType("TEXT").content("tie-"+i).createdAt(base).build());
         messages.flush();
         var expected=messages.findAll().stream().filter(m->m.getSessionId().equals(tieSession))

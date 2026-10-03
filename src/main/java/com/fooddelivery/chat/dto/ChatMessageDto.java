@@ -11,6 +11,7 @@ public class ChatMessageDto {
     private UUID id;
     private UUID sessionId;
     private String senderId;
+    private String senderEntityId;
     private String senderName;
     private String senderType;
     private String messageType;

@@ -73,47 +73,40 @@ public class ChatSessionService {
         return participantRepository.existsByChatSessionIdAndUserId(sessionId, userId);
     }
 
-    private ChatSession synchronize(ChatSession session, List<ParticipantDto> canonicalParticipants) {
-        java.util.Map<String, ParticipantDto> canonicalByUserId = canonicalParticipants.stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        ParticipantDto::getUserId,
-                        participant -> participant,
-                        (first, ignored) -> first,
-                        java.util.LinkedHashMap::new));
+    private static String entityKey(String type, String id) { return type + ":" + id; }
 
-        session.getParticipants().removeIf(existing -> !canonicalByUserId.containsKey(existing.getUserId()));
+    private ChatSession synchronize(ChatSession session, List<ParticipantDto> canonicalParticipants) {
+        var canonicalByEntity = canonicalParticipants.stream().collect(java.util.stream.Collectors.toMap(
+                p -> entityKey(p.getEntityType(), p.getEntityId()), p -> p, (first, ignored) -> first, java.util.LinkedHashMap::new));
+        session.getParticipants().removeIf(existing -> !canonicalByEntity.containsKey(entityKey(existing.getEntityType(), existing.getEntityId())));
         for (SessionParticipant existing : session.getParticipants()) {
-            ParticipantDto canonical = canonicalByUserId.get(existing.getUserId());
-            existing.setEntityType(canonical.getEntityType());
+            ParticipantDto canonical = canonicalByEntity.get(entityKey(existing.getEntityType(), existing.getEntityId()));
+            existing.setUserId(canonical.getUserId());
             existing.setDisplayName(canonical.getDisplayName());
         }
-        java.util.Set<String> existingUserIds = session.getParticipants().stream()
-                .map(SessionParticipant::getUserId)
-                .collect(java.util.stream.Collectors.toSet());
+        var existingEntities = session.getParticipants().stream()
+                .map(p -> entityKey(p.getEntityType(), p.getEntityId())).collect(java.util.stream.Collectors.toSet());
         for (ParticipantDto canonical : canonicalParticipants) {
-            if (!existingUserIds.contains(canonical.getUserId())) {
-                session.getParticipants().add(SessionParticipant.builder()
-                        .chatSession(session)
-                        .userId(canonical.getUserId())
-                        .entityType(canonical.getEntityType())
-                        .displayName(canonical.getDisplayName())
-                        .build());
+            if (existingEntities.add(entityKey(canonical.getEntityType(), canonical.getEntityId()))) {
+                session.getParticipants().add(SessionParticipant.builder().chatSession(session)
+                        .userId(canonical.getUserId()).entityId(canonical.getEntityId())
+                        .entityType(canonical.getEntityType()).displayName(canonical.getDisplayName()).build());
             }
         }
         return sessionRepository.save(session);
     }
 
-    private void validateCanonicalParticipants(List<ParticipantDto> canonicalParticipants) {
-        if (canonicalParticipants == null || canonicalParticipants.isEmpty()
-                || canonicalParticipants.stream().anyMatch(participant -> participant == null
-                || participant.getUserId() == null || participant.getUserId().isBlank()
-                || participant.getEntityType() == null || participant.getEntityType().isBlank())) {
+    private void validateCanonicalParticipants(List<ParticipantDto> participants) {
+        if (participants == null || participants.isEmpty() || participants.stream().anyMatch(p -> p == null
+                || p.getEntityId() == null || p.getEntityId().isBlank() || p.getEntityType() == null
+                || (!"RESTAURANT".equals(p.getEntityType()) && !java.util.Objects.equals(p.getUserId(), p.getEntityId()))
+                || ("RESTAURANT".equals(p.getEntityType()) && p.getUserId() != null))) {
             throw new IllegalArgumentException("Canonical chat participants are required");
         }
     }
 
     private ChatSessionResponse toResponse(ChatSession session) {
-        List<ParticipantDto> participants = session.getParticipants().stream().map(p -> ParticipantDto.builder().userId(p.getUserId()).entityType(p.getEntityType()).displayName(p.getDisplayName()).build()).collect(Collectors.toList());
+        List<ParticipantDto> participants = session.getParticipants().stream().map(p -> ParticipantDto.builder().userId(p.getUserId()).entityId(p.getEntityId()).entityType(p.getEntityType()).displayName(p.getDisplayName()).build()).collect(Collectors.toList());
         return ChatSessionResponse.builder().sessionId(session.getId()).sessionType(session.getSessionType()).referenceId(session.getReferenceId()).isActive(session.getIsActive()).createdAt(session.getCreatedAt()).participants(participants).build();
     }
 

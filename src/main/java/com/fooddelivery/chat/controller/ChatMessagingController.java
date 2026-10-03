@@ -84,7 +84,7 @@ public class ChatMessagingController {
         // sender metadata, so reconnect/history cannot disagree with a synthetic optimistic event.
         try {
             ChatMessageDto saved = saveAuthorizedMessage(
-                    sessionUuid, senderId, request.getContent(), request.getMessageType(), supportModerator);
+                    sessionUuid, senderId, request.getContent(), request.getMessageType(), supportModerator, request.getSenderEntityType());
             chatEventBroadcaster.broadcastMessage(sessionUuid, saved);
         } catch (IllegalArgumentException exception) {
             log.warn("Rejected invalid message from {} in session {}: {}", senderId, sessionId, exception.getMessage());
@@ -147,7 +147,7 @@ public class ChatMessagingController {
             callLogService.processHangup(sessionId, signal.getSenderId(), "USER_INITIATED");
         }
         
-        // The canonical roster already resolves a restaurant outlet to its owner identity.
+        // The target is an individual whose current canonical access was verified above.
         log.info("Sending WebRTC signal to target user ID: {} at destination /queue/webrtc", targetUserId);
         // Routes securely to the specific target user's private queue
         messagingTemplate.convertAndSendToUser(targetUserId, "/queue/webrtc", signal);
@@ -158,10 +158,10 @@ public class ChatMessagingController {
                                                   String senderId,
                                                   String content,
                                                   String messageType,
-                                                  boolean supportModerator) {
+                                                  boolean supportModerator, String senderEntityType) {
         return supportModerator
                 ? messageService.saveSupportModeratorMessage(sessionId, senderId, content, messageType)
-                : messageService.saveMessage(sessionId, senderId, content, messageType);
+                : messageService.saveMessage(sessionId, senderId, content, messageType, senderEntityType);
     }
 
     @java.lang.SuppressWarnings("all")

@@ -52,6 +52,7 @@ class ChatSessionControllerTest {
     void setUp() {
         lenient().when(authentication.getName()).thenReturn(USER_ID);
         lenient().when(accessService.isSupportModerator(authentication)).thenReturn(false);
+        lenient().when(accessService.withCallContacts(any())).thenAnswer(i -> i.getArgument(0));
     }
 
     @Test
@@ -61,6 +62,7 @@ class ChatSessionControllerTest {
         ChatSessionResponse responseSession = response(ORDER_ID, canonical);
         when(orderChatRosterService.resolveCanonicalParticipants(ORDER_ID)).thenReturn(canonical);
         when(sessionService.createOrGetSession(eq(ORDER_ID), any())).thenReturn(responseSession);
+        when(accessService.canAccessParticipants(canonical, authentication)).thenReturn(true);
 
         ResponseEntity<ApiResponse<ChatSessionResponse>> response = controller.createOrGetSession(request, authentication);
 
@@ -68,7 +70,7 @@ class ChatSessionControllerTest {
         ArgumentCaptor<List<ParticipantDto>> captor = ArgumentCaptor.forClass(List.class);
         verify(sessionService).createOrGetSession(eq(ORDER_ID), captor.capture());
         assertThat(captor.getValue()).extracting(ParticipantDto::getUserId)
-                .containsExactly(USER_ID, "restaurant-owner")
+                .containsExactly(USER_ID, null)
                 .doesNotContain(ATTACKER_ID);
     }
 
@@ -215,7 +217,7 @@ class ChatSessionControllerTest {
     }
 
     private ParticipantDto participant(String userId, String entityType) {
-        return ParticipantDto.builder().userId(userId).entityType(entityType).displayName(userId).build();
+        return ParticipantDto.builder().userId("RESTAURANT".equals(entityType) ? null : userId).entityId(userId).entityType(entityType).displayName(userId).build();
     }
 
     private ChatSessionResponse response(String orderId, List<ParticipantDto> participants) {

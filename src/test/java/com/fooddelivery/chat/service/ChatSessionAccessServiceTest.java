@@ -106,7 +106,8 @@ class ChatSessionAccessServiceTest {
 
     private ParticipantDto participant(String userId, String entityType) {
         return ParticipantDto.builder()
-                .userId(userId)
+                .userId("RESTAURANT".equals(entityType) ? null : userId)
+                .entityId(userId)
                 .entityType(entityType)
                 .displayName(userId)
                 .build();

@@ -33,13 +33,19 @@ public class ChatMessageService {
     private final SessionParticipantRepository participantRepository;
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final ChatSessionAccessService accessService;
 
     /**
      * Save a message to the database and return the enriched DTO.
      */
     @Transactional
     public ChatMessageDto saveMessage(UUID sessionId, String senderId, String content, String messageType) {
-        SenderIdentity sender = resolveSessionSender(sessionId, senderId);
+        return saveMessage(sessionId,senderId,content,messageType,(String)null);
+    }
+
+    @Transactional
+    public ChatMessageDto saveMessage(UUID sessionId, String senderId, String content, String messageType, String entityType) {
+        SenderIdentity sender = resolveSessionSender(sessionId, senderId, entityType);
         return saveMessage(sessionId, senderId, content, messageType, sender);
     }
 
@@ -53,13 +59,14 @@ public class ChatMessageService {
             throw new IllegalArgumentException("Support moderator identity is required");
         }
         return saveMessage(sessionId, senderId, content, messageType,
-                new SenderIdentity("Support administrator", "SUPPORT_MODERATOR"));
+                new SenderIdentity("Support administrator", "SUPPORT_MODERATOR", senderId));
     }
 
     private ChatMessageDto saveMessage(UUID sessionId, String senderId, String content, String messageType, SenderIdentity sender) {
         ChatMessage message = ChatMessage.builder()
                 .sessionId(sessionId)
                 .senderId(senderId)
+                .senderEntityId(sender.entityId())
                 .senderName(sender.name())
                 .senderType(sender.type())
                 .content(content)
@@ -98,25 +105,22 @@ public class ChatMessageService {
     @Transactional(readOnly = true)
     public Page<ChatMessageDto> getMessageHistory(UUID sessionId, int page, int size) {
         // Build a lookup of userId -> displayName from participants
-        Map<String, SessionParticipant> participantMap = participantRepository.findByChatSessionId(sessionId).stream().collect(Collectors.toMap(SessionParticipant::getUserId, p -> p, (a, b) -> a));
+        Map<String, SessionParticipant> participantMap = participantRepository.findByChatSessionId(sessionId).stream()
+                .filter(p -> p.getUserId() != null).collect(Collectors.toMap(SessionParticipant::getUserId, p -> p, (a, b) -> a));
         return messageRepository.findBySessionIdOrderByCreatedAtDescIdDesc(sessionId, PageRequest.of(page, size)).map(msg -> {
             SessionParticipant sender = participantMap.get(msg.getSenderId());
             SenderIdentity senderIdentity = new SenderIdentity(
                     msg.getSenderName() != null ? msg.getSenderName() : (sender != null ? sender.getDisplayName() : msg.getSenderId()),
-                    msg.getSenderType() != null ? msg.getSenderType() : (sender != null ? sender.getEntityType() : "UNKNOWN"));
+                    msg.getSenderType() != null ? msg.getSenderType() : (sender != null ? sender.getEntityType() : "UNKNOWN"), msg.getSenderEntityId());
             return toDto(msg, senderIdentity);
         });
     }
 
-    private SenderIdentity resolveSessionSender(UUID sessionId, String senderId) {
-        if ("SYSTEM".equals(senderId)) {
-            return new SenderIdentity("System", "SYSTEM");
-        }
-        SessionParticipant participant = participantRepository.findByChatSessionId(sessionId).stream()
-                .filter(candidate -> candidate.getUserId().equals(senderId))
-                .findFirst()
+    private SenderIdentity resolveSessionSender(UUID sessionId, String senderId, String entityType) {
+        if ("SYSTEM".equals(senderId)) { return new SenderIdentity("System", "SYSTEM", "SYSTEM"); }
+        var participant = accessService.participantForUser(sessionId, senderId, entityType)
                 .orElseThrow(() -> new IllegalArgumentException("Sender is not a participant in this session"));
-        return new SenderIdentity(participant.getDisplayName(), participant.getEntityType());
+        return new SenderIdentity(participant.getDisplayName(), participant.getEntityType(), participant.getEntityId());
     }
 
     private ChatMessageDto toDto(ChatMessage message, SenderIdentity sender) {
@@ -124,6 +128,7 @@ public class ChatMessageService {
                 .id(message.getId())
                 .sessionId(message.getSessionId())
                 .senderId(message.getSenderId())
+                .senderEntityId(sender.entityId())
                 .senderName(sender.name())
                 .senderType(sender.type())
                 .messageType(message.getMessageType())
@@ -133,7 +138,7 @@ public class ChatMessageService {
                 .build();
     }
 
-    private record SenderIdentity(String name, String type) {
+    private record SenderIdentity(String name, String type, String entityId) {
     }
 
     /**
@@ -170,11 +175,12 @@ public class ChatMessageService {
     }
 
     @java.lang.SuppressWarnings("all")
-    public ChatMessageService(final ChatMessageRepository messageRepository, final ChatSessionRepository sessionRepository, final SessionParticipantRepository participantRepository, final OutboxEventRepository outboxEventRepository, final ObjectMapper objectMapper) {
+    public ChatMessageService(final ChatMessageRepository messageRepository, final ChatSessionRepository sessionRepository, final SessionParticipantRepository participantRepository, final OutboxEventRepository outboxEventRepository, final ObjectMapper objectMapper, final ChatSessionAccessService accessService) {
         this.messageRepository = messageRepository;
         this.sessionRepository = sessionRepository;
         this.participantRepository = participantRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.objectMapper = objectMapper;
+        this.accessService = accessService;
     }
 }

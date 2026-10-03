@@ -32,6 +32,27 @@ class ChatMessageServiceTest {
     @Mock private ChatSessionRepository sessionRepository;
     @Mock private SessionParticipantRepository participantRepository;
     @Mock private OutboxEventRepository outboxEventRepository;
+    @Mock private ChatSessionAccessService accessService;
+
+    @Test void staffMessageRetainsTheSendingUserAndTheOutletTheyRepresent() {
+        UUID session = UUID.randomUUID(); String actor = UUID.randomUUID().toString(), outlet = UUID.randomUUID().toString();
+        when(accessService.participantForUser(session,actor,"RESTAURANT")).thenReturn(Optional.of(
+                com.fooddelivery.chat.dto.ParticipantDto.builder().entityId(outlet).entityType("RESTAURANT").displayName("Outlet One").build()));
+        when(messageRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        var service = new ChatMessageService(messageRepository,sessionRepository,participantRepository,outboxEventRepository,new ObjectMapper(),accessService);
+        var sent = service.saveMessage(session,actor,"Ready for pickup","TEXT","RESTAURANT");
+        assertThat(sent.getSenderId()).isEqualTo(actor);
+        assertThat(sent.getSenderEntityId()).isEqualTo(outlet);
+        assertThat(sent.getSenderType()).isEqualTo("RESTAURANT");
+        org.mockito.Mockito.verifyNoInteractions(outboxEventRepository);
+    }
+
+    @Test void aForgedEntitySelectionCannotPersistAMessage() {
+        var service = new ChatMessageService(messageRepository,sessionRepository,participantRepository,outboxEventRepository,new ObjectMapper(),accessService);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () ->
+                service.saveMessage(UUID.randomUUID(),UUID.randomUUID().toString(),"Forged sender","TEXT","RESTAURANT"));
+        org.mockito.Mockito.verifyNoInteractions(messageRepository,outboxEventRepository);
+    }
 
     @Test
     void refundOutboxOverwritesBrowserSuppliedOrderCustomerAndActorIdentity() throws Exception {
@@ -49,7 +70,8 @@ class ChatMessageServiceTest {
                 .entityType("CUSTOMER")
                 .displayName("Customer One")
                 .build();
-        when(participantRepository.findByChatSessionId(chatSessionId)).thenReturn(List.of(customer));
+        when(accessService.participantForUser(chatSessionId, "customer-1", null)).thenReturn(Optional.of(
+                com.fooddelivery.chat.dto.ParticipantDto.builder().userId("customer-1").entityId("customer-1").entityType("CUSTOMER").displayName("Customer One").build()));
         when(sessionRepository.findById(chatSessionId)).thenReturn(Optional.of(session));
         when(messageRepository.save(any(ChatMessage.class))).thenAnswer(invocation -> {
             ChatMessage message = invocation.getArgument(0);
@@ -58,7 +80,7 @@ class ChatMessageServiceTest {
         });
 
         ChatMessageService service = new ChatMessageService(
-                messageRepository, sessionRepository, participantRepository, outboxEventRepository, new ObjectMapper());
+                messageRepository, sessionRepository, participantRepository, outboxEventRepository, new ObjectMapper(), accessService);
         service.saveMessage(chatSessionId, "customer-1", "{\"orderId\":\"" + browserOrderId
                 + "\",\"customerId\":\"" + browserCustomerId
                 + "\",\"actorId\":\"attacker\",\"actorType\":\"ADMIN\",\"refundType\":\"FULL\"}", "REFUND_REQUEST");

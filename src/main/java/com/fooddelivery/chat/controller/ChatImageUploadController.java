@@ -35,14 +35,17 @@ public class ChatImageUploadController {
 
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
     @PostMapping("/sessions/{sessionId}/upload-image")
-    public ResponseEntity<com.fooddelivery.common.dto.ApiResponse<com.fooddelivery.chat.dto.UploadResponseDto>> uploadImage(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<com.fooddelivery.common.dto.ApiResponse<com.fooddelivery.chat.dto.UploadResponseDto>> uploadImage(@PathVariable UUID sessionId, @RequestParam("file") MultipartFile file,
+            @RequestParam(value="senderEntityType", required=false) String senderEntityType, Authentication authentication) {
         // 1. Authentication check
         String userId = authentication != null ? authentication.getName() : null;
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(com.fooddelivery.common.dto.ApiResponse.error("Authentication required"));
         }
         // 2. Authorization check — must be a participant
-        if (!accessService.canAccessSession(sessionId, authentication)) {
+        if (!accessService.canAccessSession(sessionId, authentication)
+                || (!accessService.isSupportModerator(authentication)
+                    && accessService.participantForUser(sessionId,userId,senderEntityType).isEmpty())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(com.fooddelivery.common.dto.ApiResponse.error("Access Denied: Not a participant of this chat session"));
         }
         // 3. Validate file presence
@@ -85,7 +88,7 @@ public class ChatImageUploadController {
             // 9. Auto-save an IMAGE message and broadcast to all subscribers
             ChatMessageDto savedMessage = accessService.isSupportModerator(authentication)
                     ? messageService.saveSupportModeratorMessage(sessionId, userId, publicUrl, "IMAGE")
-                    : messageService.saveMessage(sessionId, userId, publicUrl, "IMAGE");
+                    : messageService.saveMessage(sessionId, userId, publicUrl, "IMAGE", senderEntityType);
             // Broadcast the image message via STOMP
             chatEventBroadcaster.broadcastMessage(sessionId, savedMessage);
             return ResponseEntity.ok(com.fooddelivery.common.dto.ApiResponse.success(

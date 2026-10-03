@@ -1,24 +1,10 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 -- Chat Sessions: one per order
 CREATE TABLE chat_sessions (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_type    VARCHAR(50)  NOT NULL DEFAULT 'ORDER',
     reference_id    VARCHAR(100),
     is_active       BOOLEAN      NOT NULL DEFAULT true,
-    created_at      TIMESTAMP    NOT NULL DEFAULT NOW()
+    created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE call_logs (
@@ -26,12 +12,12 @@ CREATE TABLE call_logs (
     session_id UUID NOT NULL,
     caller_id VARCHAR(255) NOT NULL,
     callee_id VARCHAR(255) NOT NULL,
-    start_time TIMESTAMP,
-    end_time TIMESTAMP,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
     duration_seconds INT,
     status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_call_log_session FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
 );
 
@@ -39,11 +25,12 @@ CREATE TABLE call_logs (
 CREATE TABLE session_participants (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id   UUID         NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    user_id      VARCHAR(100) NOT NULL,
+    user_id      VARCHAR(100),
+    entity_id    VARCHAR(100) NOT NULL,
     entity_type  VARCHAR(50)  NOT NULL,
     display_name VARCHAR(150),
-    joined_at    TIMESTAMP    NOT NULL DEFAULT NOW(),
-    UNIQUE(session_id, user_id)
+    joined_at    TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_chat_participant_entity UNIQUE(session_id, entity_type, entity_id)
 );
 
 -- Messages
@@ -51,9 +38,12 @@ CREATE TABLE messages (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id   UUID         NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
     sender_id    VARCHAR(100) NOT NULL,
+    sender_entity_id VARCHAR(100) NOT NULL,
+    sender_name  VARCHAR(255),
+    sender_type  VARCHAR(50),
     message_type VARCHAR(50)  NOT NULL DEFAULT 'TEXT',
     content      TEXT         NOT NULL,
-    created_at   TIMESTAMP    NOT NULL DEFAULT NOW()
+    created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
 
@@ -68,3 +58,4 @@ CREATE INDEX idx_session_participants_user_id ON session_participants(user_id);
 CREATE INDEX idx_session_participants_session_id ON session_participants(session_id);
 
 CREATE INDEX idx_call_logs_session_id ON call_logs(session_id);
+CREATE UNIQUE INDEX uq_chat_sessions_session_type_reference_id ON chat_sessions (session_type, reference_id) WHERE reference_id IS NOT NULL;

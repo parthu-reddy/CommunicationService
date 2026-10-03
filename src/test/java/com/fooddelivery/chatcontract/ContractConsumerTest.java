@@ -62,12 +62,18 @@ public class ContractConsumerTest {
 
     @Test
     public void testRestaurantClientInvocations() {
-        org.springframework.http.ResponseEntity<java.util.Map<String, Object>> response = restaurantServiceClient.getOutletOwner(
-            "123e4567-e89b-12d3-a456-426614174000",
-            "communication-service"
-        );
-        org.junit.jupiter.api.Assertions.assertEquals(200, response.getStatusCodeValue());
-        org.junit.jupiter.api.Assertions.assertNotNull(response.getBody());
-        org.junit.jupiter.api.Assertions.assertEquals("321e4567-e89b-12d3-a456-426614174000", response.getBody().get("ownerId"));
+        var response = restaurantServiceClient.getOutletOrganisation(
+                java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"));
+        org.junit.jupiter.api.Assertions.assertNotNull(response);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.UUID.fromString("321e4567-e89b-12d3-a456-426614174000"), response.organisationId());
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"), response.outletId());
+    }
+
+    @Test public void testNamedUserOutletPermissionContract() {
+        var outlets = restaurantServiceClient.getUserOutlets(
+                java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"),
+                com.fooddelivery.common.enums.OrganisationPermission.ORG_VIEW);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(
+                java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")), outlets);
     }
 }

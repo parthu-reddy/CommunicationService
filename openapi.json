@@ -75,6 +75,13 @@
             "type" : "string",
             "format" : "uuid"
           }
+        }, {
+          "name" : "senderEntityType",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -117,6 +124,13 @@
           "schema" : {
             "type" : "string",
             "format" : "uuid"
+          }
+        }, {
+          "name" : "senderEntityType",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
           }
         } ],
         "requestBody" : {
@@ -304,10 +318,13 @@
         }
       },
       "ParticipantDto" : {
-        "required" : [ "entityType", "userId" ],
+        "required" : [ "entityId", "entityType" ],
         "type" : "object",
         "properties" : {
           "userId" : {
+            "type" : "string"
+          },
+          "entityId" : {
             "type" : "string"
           },
           "entityType" : {
@@ -315,6 +332,12 @@
           },
           "displayName" : {
             "type" : "string"
+          },
+          "contactUserIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
           }
         }
       },
@@ -412,6 +435,9 @@
             "format" : "uuid"
           },
           "senderId" : {
+            "type" : "string"
+          },
+          "senderEntityId" : {
             "type" : "string"
           },
           "senderName" : {

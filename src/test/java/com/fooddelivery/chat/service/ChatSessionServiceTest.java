@@ -48,7 +48,7 @@ class ChatSessionServiceTest {
                 canonical("restaurant-owner-1", "RESTAURANT", "Restaurant One")));
 
         assertThat(response.getParticipants()).extracting(ParticipantDto::getUserId)
-                .containsExactly("customer-1", "restaurant-owner-1")
+                .containsExactly("customer-1", null)
                 .doesNotContain("attacker-1");
         assertThat(response.getParticipants()).extracting(ParticipantDto::getEntityType)
                 .containsExactly("CUSTOMER", "RESTAURANT");
@@ -78,13 +78,14 @@ class ChatSessionServiceTest {
     private SessionParticipant participant(ChatSession session, String userId, String type, String name) {
         return SessionParticipant.builder()
                 .chatSession(session)
-                .userId(userId)
+                .userId("RESTAURANT".equals(type) ? null : userId)
+                .entityId(userId)
                 .entityType(type)
                 .displayName(name)
                 .build();
     }
 
     private ParticipantDto canonical(String userId, String type, String name) {
-        return ParticipantDto.builder().userId(userId).entityType(type).displayName(name).build();
+        return ParticipantDto.builder().userId("RESTAURANT".equals(type) ? null : userId).entityId(userId).entityType(type).displayName(name).build();
     }
 }
