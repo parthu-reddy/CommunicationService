@@ -18,6 +18,9 @@ import com.fooddelivery.chat.service.OrderChatRosterService;
 @RequestMapping("/api/v1/chat")
 @lombok.extern.slf4j.Slf4j
 public class ChatSessionController {
+
+    /** Largest history page a client may ask for; the UI asks for 50. */
+    static final int MAX_HISTORY_PAGE_SIZE = 100;
     @java.lang.SuppressWarnings("all")
 
     private final ChatSessionService sessionService;
@@ -100,6 +103,12 @@ public class ChatSessionController {
         String userId = authentication != null ? authentication.getName() : null;
         if (userId == null || !accessService.canAccessSession(sessionId, authentication)) {
             return ResponseEntity.status(403).body(ApiResponse.error("Access Denied: Not a participant of this chat session"));
+        }
+        // Checked after membership, so an outsider learns nothing from it. Unbounded, one request
+        // could ask for a whole session's history in a single page.
+        if (page < 0 || size < 1 || size > MAX_HISTORY_PAGE_SIZE) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(
+                    "page must be 0 or more and size between 1 and " + MAX_HISTORY_PAGE_SIZE));
         }
         Page<ChatMessageDto> messages = messageService.getMessageHistory(sessionId, page, size);
         return ResponseEntity.ok(ApiResponse.success(com.fooddelivery.common.dto.PageResponseDto.of(messages), "Success"));

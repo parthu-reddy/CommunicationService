@@ -161,6 +161,33 @@ class ChatSessionControllerTest {
         verify(messageService, never()).getMessageHistory(any(), anyInt(), anyInt());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"-1,50", "0,0", "0,101"})
+    void getMessages_refusesAPageOutsideTheBounds(int page, int size) {
+        UUID sessionId = UUID.randomUUID();
+        when(authentication.getName()).thenReturn("participant");
+        when(accessService.canAccessSession(sessionId, authentication)).thenReturn(true);
+
+        ResponseEntity<?> response = controller.getMessages(sessionId, page, size, authentication);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(messageService, never()).getMessageHistory(any(), anyInt(), anyInt());
+    }
+
+    /** Control: the largest allowed page reaches the history query unchanged. */
+    @Test
+    void getMessages_servesTheLargestAllowedPage() {
+        UUID sessionId = UUID.randomUUID();
+        when(authentication.getName()).thenReturn("participant");
+        when(accessService.canAccessSession(sessionId, authentication)).thenReturn(true);
+        when(messageService.getMessageHistory(sessionId, 2, ChatSessionController.MAX_HISTORY_PAGE_SIZE))
+                .thenReturn(org.springframework.data.domain.Page.empty());
+
+        ResponseEntity<?> response = controller.getMessages(sessionId, 2, ChatSessionController.MAX_HISTORY_PAGE_SIZE, authentication);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     @Test
     void getSessionByOrderId_deniesAnUnrelatedCallerBeforeDisclosingSessionExistence() {
         when(accessService.canAccessOrder(ORDER_ID, authentication)).thenReturn(false);
