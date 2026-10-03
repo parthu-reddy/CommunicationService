@@ -5,6 +5,10 @@ spring:
     name: chat-service
   config:
     import: optional:classpath:config/platform-defaults.yml,optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/chat_db}
     username: ${DB_USERNAME:postgres}
